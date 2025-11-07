@@ -1,0 +1,61 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Asistencia Escolar</title>
+    
+</head>
+<body>
+    <form method="post" action="#">
+        <fieldset>
+            <legend>Control de Asistencia Escolar</legend>
+
+            <p>Ingrese sus datos:</p>
+            <label for="nom"> Nombre y Apellido</label><br>
+            <input type="text" name="nombreUsuario" id="nom"></br> 
+            <label for="contra">Legajo</label><br>
+            <input type="password" name="pass" id="contra"></br>
+            
+        </br><input type="submit" name="enviar" value="Ingresar">
+
+            <p>E.P.E.T Nº 20</p>
+
+        </fieldset></br>
+        <fieldset>
+            
+            <p>¡Bienvenido!</p>
+           <label for="cargo">Selecciona tu cargo:</label> <br> <br>
+           <select name="cargo" id="cargo">
+             <option value="años">Cargo</option>
+             <option value="años2">Preceptor</option>
+             <option value="años3">Secretario</option>
+             <option value="años4">Subsecretario</option>
+             <option value="años5">Jefe de preceptores</option>
+            </select>
+            <p> Marcar el boton para confirmar su asistencia</p>
+            <input type="submit" name="enviar" value="Asistencia">
+
+        </fieldset></br>
+
+        <table border="1">
+            <caption>Ausentes del Dia</caption>
+
+            <thead>
+                <tr>
+                    <th>Nº</th>
+                    <th>Ausentes</th>
+                    <th>Cargo</th>
+                    <th>Materia</th>
+                    <th>Curso</th>
+                    <th>Fecha</th>
+                    <th>Detalles</th>
+                </tr>
+              
+            </thead>
+        </table>
+ 
+     
+</body>
+</html>
