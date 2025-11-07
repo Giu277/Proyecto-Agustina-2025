@@ -9,16 +9,20 @@ $cargosDisponibles = [];
 try {
     $conexion = new Conexion();
     $pdo = $conexion->getConexion();
-    $stmt = $pdo->query("SELECT `id_cargo`, `Denominacion` FROM `cargo` ORDER BY `Denominacion`");
+    
+    // Consulta para obtener todos los cargos ordenados alfabéticamente
+    $stmt = $pdo->query("SELECT `id_cargo`, `Denominacion`, `Entrada`, `Salida` 
+                        FROM `cargo` 
+                        ORDER BY `Denominacion` ASC");
     $cargosDisponibles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    if (empty($cargosDisponibles)) {
+        $mensaje = 'No hay cargos disponibles en la base de datos.';
+    }
 } catch (PDOException $e) {
-    // Si no existe la tabla cargo, usar valores por defecto
-    $cargosDisponibles = [
-        ['id_cargo' => 1, 'Denominacion' => 'Preceptor'],
-        ['id_cargo' => 2, 'Denominacion' => 'Secretario'],
-        ['id_cargo' => 3, 'Denominacion' => 'Subsecretario'],
-        ['id_cargo' => 4, 'Denominacion' => 'Jefe de preceptores']
-    ];
+    $mensaje = 'Error al obtener los cargos: ' . $e->getMessage();
+    // Log del error para debugging
+    error_log("Error al obtener cargos: " . $e->getMessage());
 }
 
 // Procesar registro de nueva cuenta
@@ -180,7 +184,7 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
                             
                             $mensaje = 'Cuenta creada exitosamente. Ahora puede iniciar sesión.';
                             // Redirigir después de 2 segundos
-                            header("refresh:2;url=index.php");
+                            header("refresh:2;url=inicioSesion.php");
                         }
                     } else {
                         // Si no tiene cargo, insertar usuario sin id_cargo (NULL) pero guardando contrasenia
@@ -213,7 +217,7 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
                         
                         $mensaje = 'Cuenta creada exitosamente. Ahora puede iniciar sesión.';
                         // Redirigir después de 2 segundos
-                        header("refresh:2;url=index.php");
+                        header("refresh:2;url=inicioSesion.php");
                     }
                 }
             } catch (PDOException $e) {
@@ -406,10 +410,14 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
                     <option value="">Seleccione un cargo...</option>
                     <?php if (!empty($cargosDisponibles)): ?>
                         <?php foreach ($cargosDisponibles as $cargo): ?>
-                            <option value="<?php echo htmlspecialchars($cargo['id_cargo']); ?>">
+                            <option value="<?php echo htmlspecialchars($cargo['id_cargo']); ?>"
+                                    data-entrada="<?php echo htmlspecialchars($cargo['Entrada'] ?? ''); ?>"
+                                    data-salida="<?php echo htmlspecialchars($cargo['Salida'] ?? ''); ?>">
                                 <?php echo htmlspecialchars($cargo['Denominacion']); ?>
                             </option>
                         <?php endforeach; ?>
+                    <?php else: ?>
+                        <option value="" disabled>No hay cargos disponibles</option>
                     <?php endif; ?>
                     <option value="otros">Otros...</option>
                 </select>
@@ -438,7 +446,7 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
         </fieldset>
     </form>
     <div class="link-registro">
-        <p><a href="index.php">Volver al inicio de sesión</a></p>
+        <p><a href="inicioSesion.php">Volver al inicio de sesión</a></p>
     </div>
     
     <script>
@@ -489,6 +497,29 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
             const campoCargoOtro = document.getElementById('campoCargoOtro');
             const cargoOtroInput = document.getElementById('cargoOtro');
             const tipoCargo = document.querySelector('input[name="tipoRegistro"][value="cargo"]').checked;
+            
+            // Auto-rellenar horarios si se selecciona un cargo existente
+            if (cargoSelect.value !== '' && cargoSelect.value !== 'otros') {
+                const selectedOption = cargoSelect.options[cargoSelect.selectedIndex];
+                const horaEntrada = selectedOption.getAttribute('data-entrada');
+                const horaSalida = selectedOption.getAttribute('data-salida');
+                
+                // Si el cargo tiene horarios predefinidos, usarlos
+                if (horaEntrada && horaSalida) {
+                    const horariosList = document.getElementById('horariosList');
+                    horariosList.innerHTML = ''; // Limpiar horarios existentes
+                    contadorHorarios = 0;
+                    agregarHorario();
+                    
+                    // Establecer los horarios predefinidos
+                    const entradaInput = horariosList.querySelector('input[name="horario_entrada[]"]');
+                    const salidaInput = horariosList.querySelector('input[name="horario_salida[]"]');
+                    if (entradaInput && salidaInput) {
+                        entradaInput.value = horaEntrada.substring(0, 5); // Formato HH:mm
+                        salidaInput.value = horaSalida.substring(0, 5);
+                    }
+                }
+            }
             
             // Mostrar/ocultar campo para escribir cargo personalizado
             if (cargoSelect.value === 'otros') {
