@@ -22,15 +22,14 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Asistencia' && $usuarioLogue
         try {
             $conexion = new Conexion();
             $pdo = $conexion->getConexion();
-            
             // Verificar si ya registró asistencia hoy usando legajo
-            $stmt = $pdo->prepare("SELECT `Id_asistencia` FROM `asistencias` WHERE `legajo` = ? AND DATE(`fecha`) = CURDATE()");
+            $stmt = $pdo->prepare("SELECT `Id_asiste` FROM `asistencia_c` WHERE `Id_asiste` = ? AND `fecha` = CURDATE()");
             $stmt->execute([$legajo]);
-            
             if ($stmt->rowCount() == 0) {
                 // Registrar nueva asistencia usando legajo
-                $stmt = $pdo->prepare("INSERT INTO `asistencias` (`legajo`, `fecha`, `cargo`) VALUES (?, ?, ?)");
-                $stmt->execute([$legajo, $fechaActual, $cargo]);
+                $horaActual = date('H:i:s');
+                $stmt = $pdo->prepare("INSERT INTO `asistencia_c` (`Id_asiste`, `fecha`, `Entrada`, `Salida`) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$legajo, date('Y-m-d'), $horaActual, $horaActual]);
                 $mensaje = 'Asistencia registrada correctamente.';
             } else {
                 $mensaje = 'Ya registró su asistencia hoy.';
@@ -164,10 +163,19 @@ try {
             <label for="cargo">Selecciona tu cargo:</label>
             <select name="cargo" id="cargo" required>
                 <option value="">Seleccione un cargo...</option>
-                <option value="Preceptor">Preceptor</option>
-                <option value="Secretario">Secretario</option>
-                <option value="Subsecretario">Subsecretario</option>
-                <option value="Jefe de preceptores">Jefe de preceptores</option>
+                <?php
+                // Obtener los cargos del usuario desde la base de datos
+                try {
+                    $stmtCargos = $pdo->prepare("SELECT c.id_cargo, c.Denominacion FROM cargo c INNER JOIN usuario u ON c.id_cargo = u.id_cargo WHERE u.legajo = ?");
+                    $stmtCargos->execute([$legajo]);
+                    $cargosUsuario = $stmtCargos->fetchAll(PDO::FETCH_ASSOC);
+                    foreach ($cargosUsuario as $cargo) {
+                        echo '<option value="' . htmlspecialchars($cargo['Denominacion']) . '">' . htmlspecialchars($cargo['Denominacion']) . '</option>';
+                    }
+                } catch (PDOException $e) {
+                    echo '<option value="">Error al cargar cargos</option>';
+                }
+                ?>
             </select>
             <p>Marque el botón para confirmar su asistencia</p>
             <input type="submit" name="enviar" value="Asistencia">
