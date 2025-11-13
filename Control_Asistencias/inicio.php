@@ -17,23 +17,26 @@ $usuarioLogueado = true;
 if (isset($_POST['enviar']) && $_POST['enviar'] == 'Asistencia' && $usuarioLogueado) {
     $cargo = $_POST['cargo'] ?? '';
     $fechaActual = date('Y-m-d H:i:s');
+    $horaActual = date('H:i:s');
     
     if (!empty($cargo)) {
         try {
             $conexion = new Conexion();
             $pdo = $conexion->getConexion();
+
             // Verificar si ya registró asistencia hoy usando legajo
             $stmt = $pdo->prepare("SELECT `Id_asiste` FROM `asistencia_c` WHERE `Id_asiste` = ? AND `fecha` = CURDATE()");
-            $stmt->execute([$legajo]);
+            $stmt->execute([$legajo, $cargo]);
+
             if ($stmt->rowCount() == 0) {
                 // Registrar nueva asistencia usando legajo
-                $horaActual = date('H:i:s');
-                $stmt = $pdo->prepare("INSERT INTO `asistencia_c` (`Id_asiste`, `fecha`, `Entrada`, `Salida`) VALUES (?, ?, ?, ?)");
-                $stmt->execute([$legajo, date('Y-m-d'), $horaActual, $horaActual]);
-                $mensaje = 'Asistencia registrada correctamente.';
+                $stmt = $pdo->prepare("INSERT INTO `asistencia_c` (`Id_asiste`, `fecha`, `Entrada`) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$legajo, $cargo, $fechaActual, $horaActual]);
+                $mensaje = 'Asistencia registrada correctamente para el cargo: '. htmlspecialchars($cargo);
             } else {
-                $mensaje = 'Ya registró su asistencia hoy.';
+                $mensaje = 'Ya registró su asistencia hoy para el cargo: ' . htmlspecialchars($cargo);
             }
+
         } catch (PDOException $e) {
             $mensaje = 'Error al registrar asistencia: ' . $e->getMessage();
         }
@@ -164,24 +167,92 @@ try {
             <select name="cargo" id="cargo" required>
                 <option value="">Seleccione un cargo...</option>
                 <?php
+
                 // Obtener los cargos del usuario desde la base de datos
                 try {
                     $stmtCargos = $pdo->prepare("SELECT c.id_cargo, c.Denominacion FROM cargo c INNER JOIN usuario u ON c.id_cargo = u.id_cargo WHERE u.legajo = ?");
                     $stmtCargos->execute([$legajo]);
                     $cargosUsuario = $stmtCargos->fetchAll(PDO::FETCH_ASSOC);
-                    foreach ($cargosUsuario as $cargo) {
-                        echo '<option value="' . htmlspecialchars($cargo['Denominacion']) . '">' . htmlspecialchars($cargo['Denominacion']) . '</option>';
-                    }
-                } catch (PDOException $e) {
-                    echo '<option value="">Error al cargar cargos</option>';
-                }
-                ?>
+                    if ($cargosUsuario) {
+                        foreach ($cargosUsuario as $cargo) {
+                            echo '<option value="' . htmlspecialchars($cargo['Denominacion']) . '">'
+                            . htmlspecialchars($cargo['Denominacion']) . '</option>';
+                        }
+                    } else {
+                        echo '<option value="">Sin cargos asignados</option>';}
+                     } catch (PDOException $e) {
+                        echo '<option value="">Error al cargar cargos</option>';}
+                    ?>
+    
             </select>
             <p>Marque el botón para confirmar su asistencia</p>
             <input type="submit" name="enviar" value="Asistencia">
         </fieldset>
     </form>
+    
+    <!-- Tabla de Asistencias del Día -->
+    <?php
+try {
+    $conexion = new Conexion();
+    $pdo = $conexion->getConexion();
 
+    // Obtener todas las asistencias del día actual
+    $stmt = $pdo->query("
+        SELECT 
+            a.Id_asiste AS legajo,
+            u.nombre,
+            u.apellido,
+            c.Denominacion AS cargo,
+            a.fecha,
+            a.Entrada
+        FROM asistencia_c a
+        INNER JOIN usuario u ON a.Id_asiste = u.legajo
+        INNER JOIN cargo c ON c.id_cargo = u.id_cargo
+        WHERE DATE(a.fecha) = CURDATE()
+        ORDER BY a.Entrada ASC
+    ");
+    $asistencias = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $mensaje = 'Error al obtener asistencias: ' . $e->getMessage();
+}
+?>
+
+<table>
+    <caption>Asistencias del Día - <?php echo date('d/m/Y'); ?></caption>
+    <thead>
+        <tr>
+            <th>Nº</th>
+            <th>Legajo</th>
+            <th>Nombre y Apellido</th>
+            <th>Cargo</th>
+            <th>Fecha</th>
+            <th>Hora de Entrada</th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php if (empty($asistencias)): ?>
+            <tr>
+                <td colspan="6" style="text-align: center;">No hay asistencias registradas para hoy.</td>
+            </tr>
+        <?php else: ?>
+            <?php $contador = 1; ?>
+            <?php foreach ($asistencias as $asistencia): ?>
+                <tr>
+                    <td><?php echo $contador++; ?></td>
+                    <td><?php echo htmlspecialchars($asistencia['legajo']); ?></td>
+                    <td><?php echo htmlspecialchars($asistencia['nombre'] . ' ' . $asistencia['apellido']); ?></td>
+                    <td><?php echo htmlspecialchars($asistencia['cargo'] ?? 'N/A'); ?></td>
+                    <td><?php echo htmlspecialchars(date('d/m/Y', strtotime($asistencia['fecha']))); ?></td>
+                    <td><?php echo htmlspecialchars($asistencia['Entrada']); ?></td>
+                </tr>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </tbody>
+</table>
+
+<form method="post" action="inicioSesion.php" style="margin-top: 20px;">
+    <input type="submit" name="logout" value="Cerrar Sesión" style="background-color: #f44336;">
+</form>
     <!-- Tabla de Ausentes del Día -->
     <table>
         <caption>Ausentes del Día - <?php echo date('d/m/Y'); ?></caption>
