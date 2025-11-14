@@ -1,0 +1,54 @@
+body {
+    background-color: #0a1a3c;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #fff;
+    text-align: center;
+    padding: 40px;
+  }
+
+  table {
+    width: 70%;
+    margin: 0 auto;
+    border-collapse: collapse;
+    background-color: #1e2b5a;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.4);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  
+  caption {
+    caption-side: top;
+    font-size: 1.5em;
+    font-weight: bold;
+    margin-bottom: 15px;
+    color: #00bfff;
+  }
+  
+
+  thead {
+    background-color: #102060;
+  }
+  
+  th {
+    padding: 10px;
+    border: 1px solid #333;
+    font-size: 1em;
+  }
+
+  td {
+    padding: 10px;
+    border: 1px solid #333;
+    text-align: center;
+    background-color: #223a7a;
+  }
+  
+  tfoot {
+    background-color: #061740;
+    font-weight: bold;
+    color: #00ffcc;
+  }
+  
+  tbody tr:hover {
+    background-color: #324c9b;
+    transition: background-color 0.3s;
+  }
