@@ -270,7 +270,6 @@ try {
         </div>
     <?php endif; ?>
 
-<<<<<<< HEAD
     <!-- Tarjetas superiores: Bienvenida y Registro de Asistencia -->
     <div class="cards-wrapper" style="display:flex;flex-direction:column;gap:16px;">
         <div class="card" style="border:1px solid #e6e6e6;border-radius:8px;padding:14px;display:flex;gap:12px;align-items:center;">
@@ -331,7 +330,6 @@ try {
             </form>
         </div>
     </div>
-=======
     <!-- Usuario logueado - Formulario de Asistencia -->
     <form method="post" action="inicio.php">
         <fieldset>
@@ -374,7 +372,6 @@ try {
 try {
     $conexion = new Conexion();
     $pdo = $conexion->getConexion();
->>>>>>> 366733d72e1d2b96d43aac30ba101887e18c0561
 
     // Obtener todas las asistencias del día actual
     $stmt = $pdo->query("
@@ -430,9 +427,6 @@ try {
     </tbody>
 </table>
 
-<form method="post" action="inicioSesion.php" style="margin-top: 20px;">
-    <input type="submit" name="logout" value="Cerrar Sesión" style="background-color: #f44336;">
-</form>
     <!-- Tabla de Ausentes del Día -->
     <table>
         <caption>Ausentes del Día - <?php echo date('d/m/Y'); ?></caption>
