@@ -67,6 +67,23 @@ try {
         $mensajeError = 'Error al obtener ausentes: ' . $e->getMessage();
     }
 }
+
+// Comprobar si el usuario ya registró asistencia hoy (para mostrar estado)
+$yaRegistro = false;
+$horaRegistrada = null;
+try {
+    $conexionEstado = new Conexion();
+    $pdoEstado = $conexionEstado->getConexion();
+    $stmtEst = $pdoEstado->prepare("SELECT `Entrada`, `Salida`, `fecha` FROM `asistencia_c` WHERE `Id_asiste` = ? AND `fecha` = CURDATE()");
+    $stmtEst->execute([$legajo]);
+    $filaEst = $stmtEst->fetch(PDO::FETCH_ASSOC);
+    if ($filaEst) {
+        $yaRegistro = true;
+        $horaRegistrada = $filaEst['Entrada'];
+    }
+} catch (PDOException $e) {
+    // no crítico; dejamos $yaRegistro = false
+}
 ?>
 
 <!DOCTYPE html>
@@ -133,6 +150,85 @@ try {
             margin: 10px 0;
             border-radius: 4px;
         }
+        /* Barra de navegación (vacía por ahora, con item activo marcado en azul) */
+        :root { --nav-height: 56px; }
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: var(--nav-height);
+            /* Azul similar a la imagen */
+            background-color: #1f6d7a;
+            border-bottom: 1px solid rgba(0,0,0,0.12);
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        }
+        /* Barra interior centrada y logout pegado a la derecha del viewport */
+        .nav-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        .nav-inner {
+            max-width: 800px;
+            height: 100%;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 16px;
+            /* dejar espacio a la izquierda para el logo absoluto */
+            padding-left: 96px;
+            justify-content: flex-start;
+        }
+        .nav-logo {
+            position: absolute;
+            left: 12px; /* pegado al borde izquierdo con un pequeño margen */
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            align-items: center;
+        }
+        .nav-logo img {
+            height: calc(var(--nav-height) - 14px); /* pequeño margen dentro de la barra */
+            width: auto;
+            display: block;
+            border-radius: 4px;
+            object-fit: contain;
+        }
+        .nav-right {
+            position: absolute;
+            right: 16px; /* pegado al borde derecho con pequeño margen */
+            top: 50%;
+            transform: translateY(-50%); /* centrar verticalmente */
+            display: flex;
+            align-items: center;
+        }
+        .nav-item {
+            color: #ffffff; /* texto blanco sobre barra azul */
+            padding: 8px 12px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: 500;
+            cursor: default; /* aún no hay enlaces */
+            display: inline-block;
+            line-height: 1;
+            opacity: 0.95;
+        }
+        .nav-item.nav-active {
+            background-color: rgba(255,255,255,0.12); /* ligera marca */
+            color: #ffffff;
+        }
+
+        /* Ajuste del contenido para no quedar oculto bajo la barra fija */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            padding-top: calc(var(--nav-height) + 20px);
+        }
         .error {
             background-color: #f44336;
             color: white;
@@ -144,43 +240,93 @@ try {
     </style>
 </head>
 <body>
+    <!-- Barra de navegación (vacía por ahora) con botón de Cerrar Sesión a la derecha -->
+    <nav class="navbar" aria-label="Barra de navegación principal">
+        <div class="nav-container">
+            <div class="nav-inner">
+                <div class="nav-logo">
+                    <!-- El logo se encuentra en la raíz del directorio del proyecto -->
+                    <img src="Logo.epet" alt="Logo E.P.E.T" />
+                </div>
+                <!-- Placeholder de items: aún no tienen enlaces funcionales -->
+                <span class="nav-item nav-active">Inicio</span>
+                <span class="nav-item">Registro</span>
+                <span class="nav-item">Usuarios</span>
+            </div>
+            <div class="nav-right">
+                <!-- Formulario de logout (envía POST a inicioSesion.php) -->
+                <form method="post" action="inicioSesion.php" style="margin:0;">
+                    <input type="submit" name="logout" value="Cerrar Sesión" style="background-color:#f44336;color:#fff;border:none;padding:6px 10px;border-radius:4px;cursor:pointer;">
+                </form>
+            </div>
+        </div>
+    </nav>
     <?php if (!empty($mensaje)): ?>
         <div class="mensaje <?php echo (strpos($mensaje, 'Error') !== false) ? 'error' : 'exito'; ?>">
             <?php echo htmlspecialchars($mensaje); ?>
         </div>
     <?php endif; ?>
 
-    <!-- Usuario logueado - Formulario de Asistencia -->
-    <form method="post" action="inicio.php">
-        <fieldset>
-            <legend>Control de Asistencia Escolar</legend>
-            <p>¡Bienvenido, <?php echo htmlspecialchars($nombreUsuario); ?>!</p>
-            <p>E.P.E.T Nº 20</p>
-        </fieldset>
-        
-        <fieldset>
-            <legend>Registro de Asistencia</legend>
-            <label for="cargo">Selecciona tu cargo:</label>
-            <select name="cargo" id="cargo" required>
-                <option value="">Seleccione un cargo...</option>
-                <?php
-                // Obtener los cargos del usuario desde la base de datos
-                try {
-                    $stmtCargos = $pdo->prepare("SELECT c.id_cargo, c.Denominacion FROM cargo c INNER JOIN usuario u ON c.id_cargo = u.id_cargo WHERE u.legajo = ?");
-                    $stmtCargos->execute([$legajo]);
-                    $cargosUsuario = $stmtCargos->fetchAll(PDO::FETCH_ASSOC);
-                    foreach ($cargosUsuario as $cargo) {
-                        echo '<option value="' . htmlspecialchars($cargo['Denominacion']) . '">' . htmlspecialchars($cargo['Denominacion']) . '</option>';
-                    }
-                } catch (PDOException $e) {
-                    echo '<option value="">Error al cargar cargos</option>';
-                }
-                ?>
-            </select>
-            <p>Marque el botón para confirmar su asistencia</p>
-            <input type="submit" name="enviar" value="Asistencia">
-        </fieldset>
-    </form>
+    <!-- Tarjetas superiores: Bienvenida y Registro de Asistencia -->
+    <div class="cards-wrapper" style="display:flex;flex-direction:column;gap:16px;">
+        <div class="card" style="border:1px solid #e6e6e6;border-radius:8px;padding:14px;display:flex;gap:12px;align-items:center;">
+            <!-- Icono usuario (inline SVG) -->
+            <div style="flex:0 0 48px;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="8" r="4" fill="#1976D2" />
+                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="#1976D2" />
+                </svg>
+            </div>
+            <div style="flex:1;">
+                <p style="margin:0;font-weight:700;font-size:1.25rem;">Bienvenido, <?php echo htmlspecialchars($nombreUsuario); ?>!</p>
+                <p style="margin:6px 0 0 0;color:#666;">E.P.E.T Nº 20</p>
+            </div>
+        </div>
+
+        <div class="card" style="border:1px solid #e6e6e6;border-radius:8px;padding:14px;">
+            <form method="post" action="inicio.php">
+                <h4 style="margin:0 0 10px 0;">Registro de Asistencia</h4>
+                <label for="cargo">Seleccione su cargo:</label>
+                <div style="margin:8px 0 12px 0;">
+                    <select name="cargo" id="cargo" required style="padding:8px;width:100%;max-width:320px;">
+                        <option value="">Seleccione un cargo...</option>
+                        <?php
+                        // Obtener los cargos del usuario desde la base de datos
+                        try {
+                            $stmtCargos = $pdo->prepare("SELECT c.id_cargo, c.Denominacion FROM cargo c INNER JOIN usuario u ON c.id_cargo = u.id_cargo WHERE u.legajo = ?");
+                            $stmtCargos->execute([$legajo]);
+                            $cargosUsuario = $stmtCargos->fetchAll(PDO::FETCH_ASSOC);
+                            foreach ($cargosUsuario as $cargoItem) {
+                                echo '<option value="' . htmlspecialchars($cargoItem['Denominacion']) . '">' . htmlspecialchars($cargoItem['Denominacion']) . '</option>';
+                            }
+                        } catch (PDOException $e) {
+                            echo '<option value="">Error al cargar cargos</option>';
+                        }
+                        ?>
+                    </select>
+                </div>
+
+                <div style="margin-bottom:12px;">
+                    <strong>Estado actual:</strong>
+                    <?php if ($yaRegistro): ?>
+                        <span style="color:#2e7d32;display:inline-flex;align-items:center;gap:8px;"> 
+                            <!-- Check icon -->
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M20 6L9 17l-5-5" stroke="#2e7d32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Registrado hoy a las <?php echo htmlspecialchars($horaRegistrada); ?>
+                        </span>
+                    <?php else: ?>
+                        <span style="color:#666;">Ninguna asistencia registrada hoy.</span>
+                    <?php endif; ?>
+                </div>
+
+                <div>
+                    <input type="submit" name="enviar" value="Registrar Asistencia" <?php echo $yaRegistro ? 'disabled' : ''; ?> style="background-color: #4CAF50; color: white; padding:10px 14px; border:none; border-radius:6px; cursor:pointer; <?php echo $yaRegistro ? 'opacity:0.6;cursor:not-allowed;' : ''; ?>">
+                </div>
+            </form>
+        </div>
+    </div>
 
     <!-- Tabla de Ausentes del Día -->
     <table>
@@ -199,7 +345,15 @@ try {
         <tbody>
             <?php if (empty($ausentes)): ?>
                 <tr>
-                    <td colspan="7" style="text-align: center;">No hay ausentes registrados para hoy.</td>
+                    <td colspan="7" style="text-align: center; color:#2e7d32;">
+                        <!-- Icono check y mensaje -->
+                        <span style="display:inline-flex;align-items:center;gap:8px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M20 6L9 17l-5-5" stroke="#2e7d32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            No hay ausentes registrados para hoy.
+                        </span>
+                    </td>
                 </tr>
             <?php else: ?>
                 <?php $contador = 1; ?>
@@ -218,9 +372,5 @@ try {
         </tbody>
     </table>
 
-    <form method="post" action="inicioSesion.php" style="margin-top: 20px;">
-        <input type="submit" name="logout" value="Cerrar Sesión" style="background-color: #f44336;">
-    </form>
-    
 </body>
 </html>
