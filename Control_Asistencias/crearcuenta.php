@@ -196,8 +196,8 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
                             // Guardar horarios por cada cargo (las entradas/salidas vienen como arreglos por cargo index)
                             if ($tipoRegistro == 'cargo' && !empty($cargosProcesados)) {
                                 try {
-                                    // Insertar horarios en la tabla horarios
-                                    $stmtInsertHorario = $pdo->prepare("INSERT INTO `horarios` (`legajo`, `hora_entrada`, `hora_salida`) VALUES (?, ?, ?)");
+                                    // Insertar horarios en la tabla horario
+                                    $stmtInsertHorario = $pdo->prepare("INSERT INTO `horario` (`Entrada`, `Salida`) VALUES (?, ?)");
                                     foreach ($cargosProcesados as $idx => $cproc) {
                                         $entradasPorCargo = $_POST['horario_entrada'][$idx] ?? [];
                                         $salidasPorCargo = $_POST['horario_salida'][$idx] ?? [];
@@ -206,12 +206,12 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
                                             $entrada = trim($entradasPorCargo[$j]);
                                             $salida = trim($salidasPorCargo[$j] ?? '');
                                             if (!empty($entrada) && !empty($salida) && $entrada < $salida) {
-                                                $stmtInsertHorario->execute([$legajoParaHorarios, $entrada, $salida]);
+                                                $stmtInsertHorario->execute([$entrada, $salida]);
                                             }
                                         }
                                     }
                                 } catch (PDOException $e) {
-                                    error_log("Error al guardar horarios (tabla puede no existir): " . $e->getMessage());
+                                    error_log("Error al guardar horarios: " . $e->getMessage());
                                 }
                             }
 
