@@ -2,6 +2,145 @@
 session_start();
 require_once 'Conexion.php';
 
+// Obtener columnas de una tabla
+function getColumns(PDO $pdo, string $table): array {
+    $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?");
+    $stmt->execute([$table]);
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
+
+// Obtener horario de entrada para el usuario (busca por id_cargo del usuario y día actual)
+// Flujo: 1) Obtener id_cargo del usuario 2) Buscar columna con cargo en tabla horario 3) Obtener Id_horario para hoy
+function getHorarioForUser(PDO $pdo, $legajo) {
+    // Obtener id_cargo del usuario
+    $stmt = $pdo->prepare("SELECT id_cargo FROM usuario WHERE legajo = ? LIMIT 1");
+    $stmt->execute([$legajo]);
+    $usr = $stmt->fetch(PDO::FETCH_ASSOC);
+    $userIdCargo = $usr['id_cargo'] ?? null;
+
+    // Detectar columna que vincula cargo con horario
+    $stmtCols = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'horario'");
+    $stmtCols->execute();
+    $colsHor = $stmtCols->fetchAll(PDO::FETCH_COLUMN);
+    $possible = ['id_cargo','Id_cargo','Id_Cargo','IdCargo','cargo_id','idCargo','Cargo'];
+    $col = null;
+    foreach ($possible as $c) { if (in_array($c,$colsHor,true)) { $col = $c; break; } }
+
+    // Buscar horario para el cargo del usuario en el día de hoy
+    if ($col && $userIdCargo) {
+        $q = "SELECT Id_horario FROM horario WHERE Dia = CURDATE() AND `" . $col . "` = ? LIMIT 1";
+        $s = $pdo->prepare($q);
+        $s->execute([$userIdCargo]);
+    } else {
+        // Fallback: si no hay cargo o no se encuentra columna, obtener cualquier horario del día
+        $s = $pdo->prepare("SELECT Id_horario FROM horario WHERE Dia = CURDATE() LIMIT 1");
+        $s->execute();
+    }
+    $r = $s->fetch(PDO::FETCH_ASSOC);
+    return $r['Id_horario'] ?? null;
+}
+
+// Verificar si el usuario registró hoy
+function usuarioRegistroHoy(PDO $pdo, $legajo, array $cols): bool {
+    $hasLegajo = in_array('legajo',$cols,true) || in_array('Legajo',$cols,true);
+    $hasIdAsiste = in_array('Id_asiste',$cols,true) || in_array('id_asiste',$cols,true);
+    if ($hasLegajo) {
+        $st = $pdo->prepare("SELECT 1 FROM `asiste-c` WHERE `legajo` = ? AND `fecha` = CURDATE() LIMIT 1");
+        $st->execute([$legajo]);
+        return (bool)$st->fetchColumn();
+    }
+    if ($hasIdAsiste) {
+        $st = $pdo->prepare("SELECT 1 FROM `asiste-c` WHERE `Id_asiste` = ? AND `fecha` = CURDATE() LIMIT 1");
+        $st->execute([$legajo]);
+        return (bool)$st->fetchColumn();
+    }
+    return false;
+}
+
+// Insertar asistencia dinámicamente
+function insertarAsistencia(PDO $pdo, array $cols, $legajo, $idHorario, $fechaActual, $horaActual): bool {
+    $insertCols = [];
+    $values = [];
+    if (in_array('legajo',$cols,true) || in_array('Legajo',$cols,true)) {
+        $insertCols[] = in_array('legajo',$cols,true) ? 'legajo' : 'Legajo';
+        $values[] = $legajo;
+    } elseif (in_array('Id_asiste',$cols,true) || in_array('id_asiste',$cols,true)) {
+        $insertCols[] = in_array('Id_asiste',$cols,true) ? 'Id_asiste' : 'id_asiste';
+        $values[] = $legajo;
+    }
+    if (in_array('Id_horario',$cols,true) || in_array('id_horario',$cols,true)) { $insertCols[] = in_array('Id_horario',$cols,true) ? 'Id_horario' : 'id_horario'; $values[] = $idHorario; }
+    if (in_array('fecha',$cols,true) || in_array('Fecha',$cols,true)) { $insertCols[] = in_array('fecha',$cols,true) ? 'fecha' : 'Fecha'; $values[] = $fechaActual; }
+    if (in_array('Entrada',$cols,true) || in_array('entrada',$cols,true)) { $insertCols[] = in_array('Entrada',$cols,true) ? 'Entrada' : 'entrada'; $values[] = $horaActual; }
+    if (in_array('Salida',$cols,true) || in_array('salida',$cols,true)) { $insertCols[] = in_array('Salida',$cols,true) ? 'Salida' : 'salida'; $values[] = $horaActual; }
+    if (empty($insertCols)) return false;
+    $placeholders = array_fill(0, count($insertCols), '?');
+    $sql = "INSERT INTO `asiste-c` (`" . implode('`,`',$insertCols) . "`) VALUES (" . implode(',',$placeholders) . ")";
+    $st = $pdo->prepare($sql);
+    $st->execute($values);
+    // comprobación mínima: existe registro del día con el identificador
+    if (in_array('legajo',$cols,true) || in_array('Legajo',$cols,true)) {
+        $chk = $pdo->prepare("SELECT COUNT(*) FROM `asiste-c` WHERE `fecha` = ? AND `legajo` = ?");
+        $chk->execute([$fechaActual, $legajo]);
+    } elseif (in_array('Id_asiste',$cols,true) || in_array('id_asiste',$cols,true)) {
+        $chk = $pdo->prepare("SELECT COUNT(*) FROM `asiste-c` WHERE `fecha` = ? AND `Id_asiste` = ?");
+        $chk->execute([$fechaActual, $legajo]);
+    } else {
+        $chk = $pdo->prepare("SELECT COUNT(*) FROM `asiste-c` WHERE `fecha` = ? AND `Entrada` = ?");
+        $chk->execute([$fechaActual, $horaActual]);
+    }
+    return ((int)$chk->fetchColumn()) > 0;
+}
+
+// Obtener asistencias para una fecha (construcción segura según columnas)
+function obtenerAsistencias(PDO $pdo, string $fecha): array {
+    $colsA = getColumns($pdo,'asiste-c');
+    $hasA_legajo = in_array('legajo',$colsA,true) || in_array('Legajo',$colsA,true);
+    $hasA_Id_asiste = in_array('Id_asiste',$colsA,true) || in_array('id_asiste',$colsA,true);
+    $hasA_fecha = in_array('fecha',$colsA,true) || in_array('Fecha',$colsA,true);
+    $hasA_Entrada = in_array('Entrada',$colsA,true) || in_array('entrada',$colsA,true);
+    $hasA_Salida = in_array('Salida',$colsA,true) || in_array('salida',$colsA,true);
+    $joinConds = [];
+    if ($hasA_legajo) $joinConds[] = 'a.legajo = u.legajo';
+    if ($hasA_Id_asiste) $joinConds[] = 'a.Id_asiste = u.legajo';
+    $select = [];
+    if (!empty($joinConds)) {
+        $select[] = 'COALESCE(u.legajo, ' . ($hasA_legajo ? 'a.legajo' : 'a.Id_asiste') . ') AS legajo';
+        $select[] = "COALESCE(u.nombre,'') AS nombre";
+        $select[] = "COALESCE(u.apellido,'') AS apellido";
+        $select[] = "c.Denominacion AS cargo";
+    } else {
+        $select[] = $hasA_legajo ? 'a.legajo AS legajo' : ($hasA_Id_asiste ? 'a.Id_asiste AS legajo' : "NULL AS legajo");
+        $select[] = "'' AS nombre";
+        $select[] = "'' AS apellido";
+        $select[] = "'' AS cargo";
+    }
+    $select[] = $hasA_fecha ? 'a.fecha' : "NULL AS fecha";
+    $select[] = $hasA_Entrada ? 'a.Entrada' : "'' AS Entrada";
+    $select[] = $hasA_Salida ? "COALESCE(a.Salida,'') AS Salida" : "'' AS Salida";
+    $from = "FROM `asiste-c` a";
+    $join = !empty($joinConds) ? ' LEFT JOIN usuario u ON (' . implode(' OR ', $joinConds) . ') LEFT JOIN cargo c ON c.id_cargo = u.id_cargo' : '';
+    $where = $hasA_fecha ? 'WHERE a.fecha = ?' : '';
+    $order = !empty($joinConds) ? 'ORDER BY u.apellido, u.nombre ASC' : '';
+    $sql = 'SELECT ' . implode(",\n    ", $select) . "\n    " . $from . $join . "\n    " . $where . "\n    " . $order;
+    $st = $pdo->prepare($sql);
+    if ($hasA_fecha) $st->execute([$fecha]); else $st->execute();
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// Obtener ausentes del día
+function obtenerAusentes(PDO $pdo): array {
+    $stmt = $pdo->prepare("SELECT u.`legajo`, u.`nombre`, u.`apellido`, c.`Denominacion` AS `cargo` FROM `usuario` u LEFT JOIN `cargo` c ON u.`id_cargo` = c.`id_cargo` WHERE u.`legajo` NOT IN (SELECT DISTINCT COALESCE(a.`legajo`, a.`Id_asiste`) FROM `asiste-c` a WHERE DATE(a.`fecha`) = CURDATE()) ORDER BY u.`apellido`, u.`nombre`");
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// Obtener registro del usuario hoy
+function getUserRegistroHoy(PDO $pdo, $legajo) {
+    $st = $pdo->prepare("SELECT `Entrada`,`Salida`,`fecha` FROM `asiste-c` WHERE (`legajo` = ? OR `Id_asiste` = ?) AND `fecha` = CURDATE() LIMIT 1");
+    $st->execute([$legajo,$legajo]);
+    return $st->fetch(PDO::FETCH_ASSOC);
+}
+
 // Verificar si el usuario está logueado
 if (!isset($_SESSION['legajo'])) {
     header("Location: inicioSesion.php");
@@ -13,7 +152,7 @@ $nombreUsuario = $_SESSION['nombre'] ?? '';
 $legajo = $_SESSION['legajo'];
 $usuarioLogueado = true;
 
-// Procesar registro de asistencia
+// Procesar registro de asistencia (versión compacta usando helpers)
 if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrar Asistencia' && $usuarioLogueado) {
     $cargo = $_POST['cargo'] ?? '';
     $fechaActual = date('Y-m-d');
@@ -23,59 +162,13 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrar Asistencia' && $us
         try {
             $conexion = new Conexion();
             $pdo = $conexion->getConexion();
-
-            // Intentar obtener un Id_horario para hoy (si existe)
-            $stmtHor = $pdo->prepare("SELECT Id_horario FROM horario WHERE Dia = CURDATE() LIMIT 1");
-            $stmtHor->execute();
-            $hor = $stmtHor->fetch(PDO::FETCH_ASSOC);
-            $idHorario = $hor['Id_horario'] ?? null;
-
-            // Comprobar qué columnas existen en la tabla asiste-c
-            $stmtCols = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'asiste-c'");
-            $stmtCols->execute();
-            $cols = $stmtCols->fetchAll(PDO::FETCH_COLUMN);
-            $hasLegajo = in_array('legajo', $cols, true) || in_array('Legajo', $cols, true);
-            $hasIdHorario = in_array('Id_horario', $cols, true) || in_array('id_horario', $cols, true);
-            $hasIdAsiste = in_array('Id_asiste', $cols, true);
-
-            // Verificar si ya registró asistencia hoy (usar la columna disponible)
-            if ($hasLegajo) {
-                $stmtCheck = $pdo->prepare("SELECT * FROM `asiste-c` WHERE `legajo` = ? AND `fecha` = CURDATE()");
-                $stmtCheck->execute([$legajo]);
-            } elseif ($hasIdAsiste) {
-                $stmtCheck = $pdo->prepare("SELECT * FROM `asiste-c` WHERE `Id_asiste` = ? AND `fecha` = CURDATE()");
-                $stmtCheck->execute([$legajo]);
-            } else {
-                $stmtCheck = null;
-            }
-
-            if ($stmtCheck && $stmtCheck->rowCount() > 0) {
+            $idHorario = getHorarioForUser($pdo, $legajo);
+            $cols = getColumns($pdo, 'asiste-c');
+            if (usuarioRegistroHoy($pdo, $legajo, $cols)) {
                 $mensaje = 'Ya registró su asistencia hoy.';
             } else {
-                // Preparar e insertar según columnas disponibles
-                if ($hasLegajo && $hasIdHorario) {
-                    $idHorarioCol = in_array('Id_horario', $cols, true) ? 'Id_horario' : 'id_horario';
-                    $sql = "INSERT INTO `asiste-c` (`legajo`, `" . $idHorarioCol . "`, `fecha`, `Entrada`, `Salida`) VALUES (?, ?, ?, ?, ?)";
-                    $stmtIns = $pdo->prepare($sql);
-                    $stmtIns->execute([$legajo, $idHorario, $fechaActual, $horaActual, $horaActual]);
-                } elseif ($hasLegajo) {
-                    $stmtIns = $pdo->prepare("INSERT INTO `asiste-c` (`legajo`, `fecha`, `Entrada`, `Salida`) VALUES (?, ?, ?, ?)");
-                    $stmtIns->execute([$legajo, $fechaActual, $horaActual, $horaActual]);
-                } elseif ($hasIdAsiste && $hasIdHorario) {
-                    $idHorarioCol = in_array('Id_horario', $cols, true) ? 'Id_horario' : 'id_horario';
-                    $sql = "INSERT INTO `asiste-c` (`Id_asiste`, `" . $idHorarioCol . "`, `fecha`, `Entrada`, `Salida`) VALUES (?, ?, ?, ?, ?)";
-                    $stmtIns = $pdo->prepare($sql);
-                    $stmtIns->execute([$legajo, $idHorario, $fechaActual, $horaActual, $horaActual]);
-                } elseif ($hasIdAsiste) {
-                    $stmtIns = $pdo->prepare("INSERT INTO `asiste-c` (`Id_asiste`, `fecha`, `Entrada`, `Salida`) VALUES (?, ?, ?, ?)");
-                    $stmtIns->execute([$legajo, $fechaActual, $horaActual, $horaActual]);
-                } else {
-                    // Intento genérico si la estructura es inesperada
-                    $stmtIns = $pdo->prepare("INSERT INTO `asiste-c` VALUES (?, ?, ?, ?)");
-                    $stmtIns->execute([$legajo, $fechaActual, $horaActual, $horaActual]);
-                }
-
-                $mensaje = 'Asistencia registrada correctamente.';
+                $ok = insertarAsistencia($pdo, $cols, $legajo, $idHorario, $fechaActual, $horaActual);
+                $mensaje = $ok ? 'Asistencia registrada correctamente.' : 'No se encontró la fila insertada en `asiste-c`.';
             }
         } catch (PDOException $e) {
             $mensaje = 'Error al registrar asistencia: ' . $e->getMessage();
@@ -90,25 +183,9 @@ $ausentes = [];
 try {
     $conexion = new Conexion();
     $pdo = $conexion->getConexion();
-    
-    // Obtener usuarios que NO registraron asistencia hoy (ausentes)
-    $stmt = $pdo->prepare("
-        SELECT u.`legajo`, u.`nombre`, u.`apellido`, c.`Denominacion` as `cargo`
-        FROM `usuario` u
-        LEFT JOIN `cargo` c ON u.`id_cargo` = c.`id_cargo`
-        WHERE u.`legajo` NOT IN (
-            SELECT DISTINCT a.`Id_asiste` 
-            FROM `asiste-c` a 
-            WHERE DATE(a.`fecha`) = CURDATE()
-        )
-        ORDER BY u.`apellido`, u.`nombre`
-    ");
-    $stmt->execute();
-    $ausentes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $ausentes = obtenerAusentes($pdo);
 } catch (PDOException $e) {
-    if (empty($ausentes)) {
-        $mensajeError = 'Error al obtener ausentes: ' . $e->getMessage();
-    }
+    if (empty($ausentes)) $mensajeError = 'Error al obtener ausentes: ' . $e->getMessage();
 }
 
 // Comprobar si el usuario ya registró asistencia hoy (para mostrar estado)
@@ -117,13 +194,8 @@ $horaRegistrada = null;
 try {
     $conexionEstado = new Conexion();
     $pdoEstado = $conexionEstado->getConexion();
-    $stmtEst = $pdoEstado->prepare("SELECT `Entrada`, `Salida`, `fecha` FROM `asiste-c` WHERE (`legajo` = ? OR `Id_asiste` = ?) AND `fecha` = CURDATE()");
-    $stmtEst->execute([$legajo, $legajo]);
-    $filaEst = $stmtEst->fetch(PDO::FETCH_ASSOC);
-    if ($filaEst) {
-        $yaRegistro = true;
-        $horaRegistrada = $filaEst['Entrada'];
-    }
+    $filaEst = getUserRegistroHoy($pdoEstado, $legajo);
+    if ($filaEst) { $yaRegistro = true; $horaRegistrada = $filaEst['Entrada']; }
 } catch (PDOException $e) {
     // no crítico; dejamos $yaRegistro = false
 }
@@ -136,12 +208,6 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inicio - Control de Asistencia Escolar</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 20px;
-        }
         fieldset {
             margin: 20px 0;
             padding: 15px;
@@ -383,110 +449,45 @@ try {
             </form>
         </div>
     </div>   
-    <!-- Tabla de Asistencias del Día (Presentes y Ausentes) -->
+    <!-- Tabla de Asistencias Registradas (usa la fecha guardada en la tabla `asiste-c`) -->
     <?php
-$allRegistros = [];
-try {
-    $conexion = new Conexion();
-    $pdo = $conexion->getConexion();
+    $asistencias = [];
+    try {
+        $conexionA = new Conexion();
+        $pdoA = $conexionA->getConexion();
+        $fechaFiltro = date('Y-m-d');
+        $asistencias = obtenerAsistencias($pdoA, $fechaFiltro);
+    } catch (PDOException $e) {
+        $mensaje = 'Error al obtener asistencias registradas: ' . $e->getMessage();
+    }
+    ?>
 
-    // Obtener TODOS los usuarios con su estado de asistencia de hoy
-    $stmt = $pdo->query("
-        SELECT 
-            u.legajo,
-            u.nombre,
-            u.apellido,
-            c.Denominacion AS cargo,
-            a.fecha,
-            a.Entrada,
-            CASE 
-                WHEN a.Id_asiste IS NOT NULL THEN 'Presente'
-                ELSE 'Ausente'
-            END AS estado
-        FROM usuario u
-        LEFT JOIN cargo c ON c.id_cargo = u.id_cargo
-        LEFT JOIN `asiste-c` a ON (a.Id_asiste = u.legajo OR a.legajo = u.legajo) AND DATE(a.fecha) = CURDATE()
-        ORDER BY 
-            CASE WHEN a.Id_asiste IS NOTcu NULL THEN 0 ELSE 1 END,
-            u.apellido, u.nombre ASC
-    ");
-    $allRegistros = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    $mensaje = 'Error al obtener asistencias: ' . $e->getMessage();
-}
-?>
-
-<table>
-    <caption>Asistencias del Día - <?php echo date('d/m/Y'); ?></caption>
-    <thead>
-        <tr>
-            <th>Nº</th>
-            <th>Legajo</th>
-            <th>Nombre y Apellido</th>
-            <th>Cargo</th>
-            <th>Fecha</th>
-            <th>Hora de Entrada</th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php if (empty($allRegistros)): ?>
-            <tr>
-                <td colspan="6" style="text-align: center;">No hay registros disponibles.</td>
-            </tr>
-        <?php else: ?>
-            <?php $contador = 1; ?>
-            <?php foreach ($allRegistros as $registro): ?>
-                <tr style="<?php echo ($registro['estado'] === 'Presente') ? 'background-color: #e8f5e9;' : 'background-color: #ffebee;'; ?>">
-                    <td><?php echo $contador++; ?></td>
-                    <td><?php echo htmlspecialchars($registro['legajo']); ?></td>
-                    <td><?php echo htmlspecialchars($registro['nombre'] . ' ' . $registro['apellido']); ?></td>
-                    <td><?php echo htmlspecialchars($registro['cargo'] ?? 'N/A'); ?></td>
-                    <td><?php echo date('d/m/Y'); ?></td>
-                    <td><?php echo !empty($registro['Entrada']) ? htmlspecialchars($registro['Entrada']) : '-'; ?></td>
-                </tr>
-            <?php endforeach; ?>
-        <?php endif; ?>
-    </tbody>
-</table>
-
-    <!-- Tabla de Ausentes del Día -->
+    
     <table>
-        <caption>Ausentes del Día - <?php echo date('d/m/Y'); ?></caption>
+        <caption>Asistencias Registradas - <?php echo date('d/m/Y'); ?></caption>
         <thead>
             <tr>
                 <th>Nº</th>
-                <th>Ausentes</th>
+                <th>Legajo</th>
+                <th>Nombre y Apellido</th>
                 <th>Cargo</th>
-                <th>Materia</th>
-                <th>Curso</th>
-                <th>Fecha</th>
-                <th>Detalles</th>
+                <th>Fecha registrada</th>
             </tr>
         </thead>
         <tbody>
-            <?php if (empty($ausentes)): ?>
+            <?php if (empty($asistencias)): ?>
                 <tr>
-                    <td colspan="7" style="text-align: center; color:#2e7d32;">
-                        <!-- Icono check y mensaje -->
-                        <span style="display:inline-flex;align-items:center;gap:8px;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M20 6L9 17l-5-5" stroke="#2e7d32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                            No hay ausentes registrados para hoy.
-                        </span>
-                    </td>
+                    <td colspan="5" style="text-align: center;">No hay asistencias registradas para la fecha seleccionada.</td>
                 </tr>
             <?php else: ?>
-                <?php $contador = 1; ?>
-                <?php foreach ($ausentes as $ausente): ?>
+                <?php $contadorA = 1; ?>
+                <?php foreach ($asistencias as $fila): ?>
                     <tr>
-                        <td><?php echo $contador++; ?></td>
-                        <td><?php echo htmlspecialchars($ausente['nombre'] . ' ' . $ausente['apellido']); ?></td>
-                        <td><?php echo htmlspecialchars($ausente['cargo'] ?? 'N/A'); ?></td>
-                        <td>-</td>
-                        <td>-</td>
-                        <td><?php echo date('d/m/Y'); ?></td>
-                        <td>-</td>
+                        <td><?php echo $contadorA++; ?></td>
+                        <td><?php echo htmlspecialchars($fila['legajo']); ?></td>
+                        <td><?php echo htmlspecialchars(trim($fila['nombre'] . ' ' . $fila['apellido'])); ?></td>
+                        <td><?php echo htmlspecialchars($fila['cargo'] ?? 'N/A'); ?></td>
+                        <td><?php echo !empty($fila['fecha']) ? date('d/m/Y', strtotime($fila['fecha'])) : '-'; ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>

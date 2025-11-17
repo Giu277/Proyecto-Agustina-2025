@@ -1,7 +1,7 @@
 <?php
 class Conexion {
     private $host = "localhost";       
-    private $db = "EPET N°20";   
+    private $db = "epet20";   
     private $usuario = "root";         
     private $clave = "";  
     private $charset = "utf8mb4";
