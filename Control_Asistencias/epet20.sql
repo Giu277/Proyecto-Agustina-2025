@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 07-11-2025 a las 14:51:36
+-- Tiempo de generación: 18-11-2025 a las 13:02:15
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -18,21 +18,8 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Base de datos: `epet n°20`
+-- Base de datos: `epet20`
 --
-
--- --------------------------------------------------------
-
---
--- Estructura de tabla para la tabla `asiste`
---
-
-CREATE TABLE `asiste` (
-  `Id_asiste` int(11) NOT NULL,
-  `fecha` date NOT NULL,
-  `Entrada` time(6) NOT NULL,
-  `Salida` time(6) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -46,6 +33,20 @@ CREATE TABLE `asiste-c` (
   `Entrada` time(6) NOT NULL,
   `Salida` time(6) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `asiste-c`
+--
+
+INSERT INTO `asiste-c` (`Id_asiste`, `fecha`, `Entrada`, `Salida`) VALUES
+(555, '2025-11-17', '13:42:42.000000', '13:42:42.000000'),
+(1312, '2025-11-17', '18:21:18.000000', '18:21:18.000000'),
+(2134, '2025-11-17', '14:23:46.000000', '14:23:46.000000'),
+(3245, '2025-11-17', '14:38:37.000000', '14:38:37.000000'),
+(3333, '2025-11-17', '16:50:34.000000', '16:50:34.000000'),
+(3698, '2025-11-18', '12:34:53.000000', '12:34:53.000000'),
+(9874, '2025-11-17', '14:46:43.000000', '14:46:43.000000'),
+(45682, '2025-11-17', '14:51:05.000000', '14:51:05.000000');
 
 -- --------------------------------------------------------
 
@@ -66,8 +67,7 @@ CREATE TABLE `cargo` (
 
 INSERT INTO `cargo` (`id_cargo`, `Denominacion`, `Entrada`, `Salida`) VALUES
 (1, 'Portero', '00:00:00.000000', '00:00:00.000000'),
-(2, 'Director', '00:00:00.000000', '00:00:00.000000'),
-(3, 'aguatera', '00:00:00.000000', '00:00:00.000000');
+(2, 'Profesor', '00:00:00.000000', '00:00:00.000000');
 
 -- --------------------------------------------------------
 
@@ -94,6 +94,27 @@ CREATE TABLE `horario` (
   `Salida` time(6) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Volcado de datos para la tabla `horario`
+--
+
+INSERT INTO `horario` (`Id_horario`, `Dia`, `Entrada`, `Salida`) VALUES
+(1, '0000-00-00', '00:00:00.000000', '08:00:00.000000'),
+(2, '0000-00-00', '08:00:00.000000', '12:00:00.000000'),
+(3, '0000-00-00', '05:00:00.000000', '19:00:00.000000'),
+(4, '0000-00-00', '00:00:00.000000', '04:00:00.000000'),
+(6, '0000-00-00', '00:00:00.000000', '23:00:00.000000'),
+(7, '0000-00-00', '08:00:00.000000', '11:20:00.000000'),
+(8, '0000-00-00', '05:00:00.000000', '09:00:00.000000'),
+(9, '0000-00-00', '08:00:00.000000', '10:00:00.000000'),
+(10, '0000-00-00', '08:00:00.000000', '17:00:00.000000'),
+(11, '0000-00-00', '08:00:00.000000', '13:00:00.000000'),
+(12, '0000-00-00', '07:00:00.000000', '13:00:00.000000'),
+(13, '0000-00-00', '08:00:00.000000', '11:00:00.000000'),
+(14, '0000-00-00', '08:00:00.000000', '10:00:00.000000'),
+(15, '0000-00-00', '08:00:00.000000', '11:00:00.000000'),
+(16, '0000-00-00', '05:00:00.000000', '09:00:00.000000');
+
 -- --------------------------------------------------------
 
 --
@@ -115,33 +136,24 @@ CREATE TABLE `usuario` (
   `Legajo` int(11) NOT NULL,
   `Nombre` varchar(50) NOT NULL,
   `Apellido` varchar(50) NOT NULL,
-  `contrasenia` varchar(255) NOT NULL,
-  `id_cargo` int(11) DEFAULT NULL
+  `contraseña` varchar(255) NOT NULL,
+  `id_cargo` int(11) DEFAULT NULL,
+  `contrasenia` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Volcado de datos para la tabla `usuario`
 --
 
-INSERT INTO `usuario` (`Legajo`, `Nombre`, `Apellido`, `contrasenia`, `id_cargo`) VALUES
-(1, 'Jesus', 'Perez', '$2y$10$cPNU.1aZPrRyrMxldTOD2.DjiDjOpqz4quxPE6Rd05iToszEzKyaO', 2),
-(111, 'Jesus', 'Perez', '$2y$10$WkIiaYYG9Qx2PaHNTysLUeIhF.vH8vNiwNt60yyyC5Y2sSxhJyj5e', 2),
-(2134, 'Santino', 'Reynoso', '$2y$10$YFLbb.u13xKomcFL5GXd9u73ElSNgJrCf83VPK3LvV4y81JwscaZa', 2),
-(2233, 'Matias', 'Bostero', '$2y$10$rrhPNOpuLF5laEHPbZc2IuLCtY05V0VfSbZ4h7PckGES/HY0vnNDW', 1),
-(2234, 'Matias', 'Bostero', '$2y$10$N5JwxuNdV55HsA4dXbiBi.b6w23wzCCIIqKMJPyuQVO/2hVhHLCv.', 1),
-(2235, 'Matias', 'Bostero', '$2y$10$oV9I7XvL2g9mT.FuyvjVMOHc2Mx5yNuy/sFBsgtHpUO7YbBFULBJW', 2),
-(3300, 'Santino', 'Reynoso', '$2y$10$xjLrqKBRG5.vxogWHwcRl.DZLSgWCD2bd9aBRbzXvYBoEOY1XRWrC', 1),
-(4040, 'Flor', 'sanchez', '$2y$10$1I7ZbWXBA4.zeYXp9SWuBOAE5hILjz5WeQ1lIRJxX0XUIZ4DsRZjK', 3);
+INSERT INTO `usuario` (`Legajo`, `Nombre`, `Apellido`, `contraseña`, `id_cargo`, `contrasenia`) VALUES
+(555, 'santino', 'reynoso', '', 2, '$2y$10$FROjujoZMQFw5Uo2DjRkaeWb6rrrCh4eJX/0ttDp2JVX8MtTGkwKy'),
+(2134, 'sant', 'rey', '', 1, '$2y$10$qwHl0MJOKg.Lm3meTxyfteWrGPi6myHe2oHqfzkIVzqaUSi3JLlq6'),
+(3421, 'santino', 'reynoso', '', 2, '$2y$10$xRcOIzeng0/uMTzR5FodUuoHmYoEQc9FH3RyafXJrKZcdIMCHncVK'),
+(3698, 'Felix', 'San Martin', '', 1, '$2y$10$Ga7s7bquk4zZvG3qnba/m.JNTgVjh68dTzBH/2pn6L97NNCAfHMg.');
 
 --
 -- Índices para tablas volcadas
 --
-
---
--- Indices de la tabla `asiste`
---
-ALTER TABLE `asiste`
-  ADD PRIMARY KEY (`Id_asiste`);
 
 --
 -- Indices de la tabla `asiste-c`
@@ -184,22 +196,16 @@ ALTER TABLE `usuario`
 --
 
 --
--- AUTO_INCREMENT de la tabla `asiste`
---
-ALTER TABLE `asiste`
-  MODIFY `Id_asiste` int(11) NOT NULL AUTO_INCREMENT;
-
---
 -- AUTO_INCREMENT de la tabla `asiste-c`
 --
 ALTER TABLE `asiste-c`
-  MODIFY `Id_asiste` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `Id_asiste` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=45683;
 
 --
 -- AUTO_INCREMENT de la tabla `cargo`
 --
 ALTER TABLE `cargo`
-  MODIFY `id_cargo` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id_cargo` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT de la tabla `curso`
@@ -211,7 +217,7 @@ ALTER TABLE `curso`
 -- AUTO_INCREMENT de la tabla `horario`
 --
 ALTER TABLE `horario`
-  MODIFY `Id_horario` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `Id_horario` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT de la tabla `materia`
@@ -223,25 +229,7 @@ ALTER TABLE `materia`
 -- AUTO_INCREMENT de la tabla `usuario`
 --
 ALTER TABLE `usuario`
-  MODIFY `Legajo` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4041;
-
---
--- Restricciones para tablas volcadas
---
-
---
--- Filtros para la tabla `asiste`
---
-ALTER TABLE `asiste`
-  ADD CONSTRAINT `asiste_ibfk_1` FOREIGN KEY (`Id_asiste`) REFERENCES `materia` (`Id_materia`),
-  ADD CONSTRAINT `asiste_ibfk_2` FOREIGN KEY (`Id_asiste`) REFERENCES `usuario` (`Legajo`);
-
---
--- Filtros para la tabla `asiste-c`
---
-ALTER TABLE `asiste-c`
-  ADD CONSTRAINT `asiste-c_ibfk_1` FOREIGN KEY (`Id_asiste`) REFERENCES `usuario` (`Legajo`),
-  ADD CONSTRAINT `asiste-c_ibfk_2` FOREIGN KEY (`Id_asiste`) REFERENCES `cargo` (`id_cargo`);
+  MODIFY `Legajo` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1234567892;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
