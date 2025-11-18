@@ -349,7 +349,7 @@ try {
     </style>
 </head>
 <body>
-    <!-- Barra de navegación (vacía por ahora) con botón de Cerrar Sesión a la derecha -->
+    <!-- Barra de navegación con botón de Cerrar Sesión a la derecha -->
     <nav class="navbar" aria-label="Barra de navegación principal">
         <div class="nav-container">
             <div class="nav-inner">
@@ -358,9 +358,8 @@ try {
                     <img src="Logo.epet" alt="Logo E.P.E.T" />
                 </div>
                 <!-- Placeholder de items: aún no tienen enlaces funcionales -->
-                <span class="nav-item nav-active">Inicio</span>
-                <span class="nav-item">Registro</span>
-                <span class="nav-item">Usuarios</span>
+                <a href="inicio.php" class="nav-item nav-active">Inicio</a>
+                <a href="Asistencia.php" class="nav-item">Asistencias Registradas</a>
             </div>
             <div class="nav-right">
                 <!-- Formulario de logout (envía POST a inicioSesion.php) -->
