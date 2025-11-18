@@ -152,7 +152,7 @@ $nombreUsuario = $_SESSION['nombre'] ?? '';
 $legajo = $_SESSION['legajo'];
 $usuarioLogueado = true;
 
-// Procesar registro de asistencia (versión compacta usando helpers)
+// Procesar registro de asistencia 
 if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrar Asistencia' && $usuarioLogueado) {
     $cargo = $_POST['cargo'] ?? '';
     $fechaActual = date('Y-m-d');
