@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 require_once 'Conexion.php';
 
@@ -10,7 +10,7 @@ try {
     $conexion = new Conexion();
     $pdo = $conexion->getConexion();
     
-    // Consulta para obtener todos los cargos ordenados alfabéticamente
+    // Consulta para obtener todos los cargos ordenados alfab├®ticamente
     $stmt = $pdo->query("SELECT `id_cargo`, `Denominacion`, `Entrada`, `Salida` 
                         FROM `cargo` 
                         ORDER BY `Denominacion` ASC");
@@ -32,7 +32,7 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
     $legajoRegistro = trim($_POST['legajoRegistro'] ?? '');
     $contrasenia = trim($_POST['contrasenia'] ?? '');
     $tipoRegistro = $_POST['tipoRegistro'] ?? '';
-    // Ahora soportamos múltiples cargos: cargoRegistro[] y cargoOtro[]
+    // Ahora soportamos m├║ltiples cargos: cargoRegistro[] y cargoOtro[]
     $cargoRegistro = $_POST['cargoRegistro'] ?? [];
     if (!is_array($cargoRegistro)) $cargoRegistro = [$cargoRegistro];
     $cargoOtro = $_POST['cargoOtro'] ?? [];
@@ -43,7 +43,7 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
     
     if (!empty($nombreRegistro) && !empty($apellidoRegistro) && !empty($legajoRegistro) && !empty($tipoRegistro) && !empty($contrasenia)) {
         if (strlen($contrasenia) < 6) {
-            $mensaje = 'La contraseña debe tener al menos 6 caracteres.';
+            $mensaje = 'La contrase├▒a debe tener al menos 6 caracteres.';
         } elseif ($tipoRegistro == 'cargo' && (empty($cargoRegistro) || count(array_filter($cargoRegistro)) == 0)) {
             $mensaje = 'Por favor seleccione al menos un cargo.';
         } elseif ($tipoRegistro == 'cargo' && in_array('otros', $cargoRegistro)) {
@@ -56,12 +56,12 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
                 }
             }
             if (!$okOtros) {
-                $mensaje = 'Por favor ingrese el nombre del cargo para la opción "Otros".';
+                $mensaje = 'Por favor ingrese el nombre del cargo para la opci├│n "Otros".';
             }
         } elseif ($tipoRegistro == 'cargo' && (empty($horariosEntrada) || empty($horariosSalida))) {
-            // horarios serán validados por cargo en el procesamiento posterior
-            // aquí solo comprobamos que exista al menos alguna entrada
-            // (no bloquearamos aún)
+            // horarios ser├ín validados por cargo en el procesamiento posterior
+            // aqu├¡ solo comprobamos que exista al menos alguna entrada
+            // (no bloquearamos a├║n)
             ;
         } elseif ($tipoRegistro == 'materia' && empty($materiaRegistro)) {
             $mensaje = 'Por favor ingrese la materia.';
@@ -86,11 +86,11 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
                         $pdo->exec("ALTER TABLE `usuario` ADD `contrasenia` VARCHAR(255) NULL");
                     }
                 } catch (PDOException $e) {
-                    // Si falla la alteración, no detener el flujo; las inserciones tienen fallback
+                    // Si falla la alteraci├│n, no detener el flujo; las inserciones tienen fallback
                     error_log("Aviso: no se pudo asegurar columnas usuario: " . $e->getMessage());
                 }
                 
-                // hashear la contraseña
+                // hashear la contrase├▒a
                 $hashContrasenia = password_hash($contrasenia, PASSWORD_DEFAULT);
                 
                 // Verificar si el legajo ya existe en la tabla usuario
@@ -99,19 +99,19 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
                 $legajoExiste = ($stmt->rowCount() > 0);
                 
                 if ($legajoExiste) {
-                    $mensaje = 'El legajo ya está registrado. Por favor use otro legajo.';
+                    $mensaje = 'El legajo ya est├í registrado. Por favor use otro legajo.';
                 } else {
-                    // Verificar que el cargo existe si se seleccionó uno
+                    // Verificar que el cargo existe si se seleccion├│ uno
                     $idCargo = null;
                     if ($tipoRegistro == 'cargo' && !empty($cargoRegistro)) {
                         // Obtener el nombre del cargo seleccionado
                         $denominacionCargo = null;
                         
                         if ($cargoRegistro == 'otros') {
-                            // Si seleccionó "Otros...", usar el cargo escrito
+                            // Si seleccion├│ "Otros...", usar el cargo escrito
                             $denominacionCargo = $cargoOtro;
                         } else {
-                            // Verificar y procesar múltiples cargos si corresponde
+                            // Verificar y procesar m├║ltiples cargos si corresponde
                             $idCargoParaUsuario = null;
                             $cargosProcesados = [];
                             if ($tipoRegistro == 'cargo' && !empty($cargoRegistro) && count(array_filter($cargoRegistro)) > 0) {
@@ -131,7 +131,7 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
                                     }
 
                                     if (empty($denominacionCargo)) {
-                                        // Omite cargos inválidos
+                                        // Omite cargos inv├ílidos
                                         continue;
                                     }
 
@@ -168,7 +168,7 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
                                     }
 
                                     $cargosProcesados[] = ['id' => $idCargoActual, 'denominacion' => $denominacionCargo];
-                                    // Usar el primer cargo válido para el campo id_cargo del usuario
+                                    // Usar el primer cargo v├ílido para el campo id_cargo del usuario
                                     if ($idCargoParaUsuario === null && $idCargoActual !== null) {
                                         $idCargoParaUsuario = $idCargoActual;
                                     }
@@ -185,7 +185,7 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
                                     $stmt = $pdo->prepare("INSERT INTO `usuario` (`legajo`, `nombre`, `apellido`, `contrasenia`) VALUES (?, ?, ?, ?)");
                                     $stmt->execute([$legajoRegistro, $nombreRegistro, $apellidoRegistro, $hashContrasenia]);
                                 } catch (PDOException $e2) {
-                                    // Si falla la inserción con id_cargo, intentamos sin ese campo
+                                    // Si falla la inserci├│n con id_cargo, intentamos sin ese campo
                                     throw $e2;
                                 }
                             }
@@ -215,14 +215,14 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
                                 }
                             }
 
-                            $mensaje = 'Cuenta creada exitosamente. Ahora puede iniciar sesión.';
-                            // Redirigir después de 2 segundos
+                            $mensaje = 'Cuenta creada exitosamente. Ahora puede iniciar sesi├│n.';
+                            // Redirigir despu├®s de 2 segundos
                             header("refresh:2;url=inicioSesion.php");
                         }
 
                         // Si tiene materia, guardarla (asumiendo que existe una tabla usuario_materia o campo)
                         if ($tipoRegistro == 'materia' && !empty($materiaRegistro)) {
-                            // Aquí se puede agregar la lógica para guardar la materia
+                            // Aqu├¡ se puede agregar la l├│gica para guardar la materia
                             // Ejemplo si existe tabla usuario_materia:
                             try {
                                 $stmt = $pdo->prepare("INSERT INTO usuario_materia (legajo, materia) VALUES (?, ?)");
@@ -233,8 +233,8 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
                             }
                         }
                         
-                        $mensaje = 'Cuenta creada exitosamente. Ahora puede iniciar sesión.';
-                        // Redirigir después de 2 segundos
+                        $mensaje = 'Cuenta creada exitosamente. Ahora puede iniciar sesi├│n.';
+                        // Redirigir despu├®s de 2 segundos
                         header("refresh:2;url=inicioSesion.php");
                     }
                 }
@@ -255,12 +255,16 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crear Cuenta - Control de Asistencia Escolar</title>
+    <link rel="stylesheet" href="styles.css">
     <style>
         body {
             font-family: Arial, sans-serif;
             max-width: 800px;
             margin: 20px auto;
             padding: 20px;
+            background-color: #0a1a3c;
+            color: #fff;
+            text-align: left;
         }
         fieldset {
             margin: 20px 0;
@@ -386,7 +390,7 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
 </head>
 <body>
     <?php if (!empty($mensaje)): ?>
-        <div class="mensaje <?php echo (strpos($mensaje, 'Error') !== false || strpos($mensaje, 'incorrecto') !== false || strpos($mensaje, 'no encontrado') !== false || strpos($mensaje, 'ya está registrado') !== false) ? 'error' : 'exito'; ?>">
+        <div class="mensaje <?php echo (strpos($mensaje, 'Error') !== false || strpos($mensaje, 'incorrecto') !== false || strpos($mensaje, 'no encontrado') !== false || strpos($mensaje, 'ya est├í registrado') !== false) ? 'error' : 'exito'; ?>">
             <?php echo htmlspecialchars($mensaje); ?>
         </div>
     <?php endif; ?>
@@ -406,11 +410,11 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
             <label for="legajoReg">Legajo</label>
             <input type="text" name="legajoRegistro" id="legajoReg" required>
 
-            <!-- NUEVO: campo de contraseña -->
-            <label for="passReg">Contraseña</label>
-            <input type="password" name="contrasenia" id="passReg" required minlength="6" placeholder="Mínimo 6 caracteres">
+            <!-- NUEVO: campo de contrase├▒a -->
+            <label for="passReg">Contrase├▒a</label>
+            <input type="password" name="contrasenia" id="passReg" required minlength="6" placeholder="M├¡nimo 6 caracteres">
             
-            <label>¿Tiene cargo o materias?</label>
+            <label>┬┐Tiene cargo o materias?</label>
             <div class="radio-group">
                 <label>
                     <input type="radio" name="tipoRegistro" value="cargo" required onchange="mostrarCampoCondicional()">
@@ -423,22 +427,22 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
             </div>
             
             <div id="campoCargo" class="campo-condicional">
-                <label>Seleccione sus cargos (puede agregar más de uno):</label>
+                <label>Seleccione sus cargos (puede agregar m├ís de uno):</label>
                 <div id="cargosContainer"></div>
                 <button type="button" class="btn-agregar-horario" onclick="agregarCargo()">+ Agregar otro cargo</button>
             </div>
 
             <div id="campoMateria" class="campo-condicional">
                 <label for="materiaReg">Ingrese la materia:</label>
-                <input type="text" name="materiaRegistro" id="materiaReg" placeholder="Ej: Matemática, Lengua, etc.">
+                <input type="text" name="materiaRegistro" id="materiaReg" placeholder="Ej: Matem├ítica, Lengua, etc.">
             </div>
 
             <input type="submit" name="enviar" value="Registrarse">
-            <p>E.P.E.T Nº 20</p>
+            <p>E.P.E.T N┬║ 20</p>
         </fieldset>
     </form>
     <div class="link-registro">
-        <p><a href="inicioSesion.php">Volver al inicio de sesión</a></p>
+        <p><a href="inicioSesion.php">Volver al inicio de sesi├│n</a></p>
     </div>
     
     <script>
@@ -555,7 +559,7 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
         document.getElementById('formRegistro').addEventListener('submit', function(e) {
             const passInput = document.getElementById('passReg');
             if (!passInput.value || passInput.value.length < 6) {
-                e.preventDefault(); alert('La contraseña es obligatoria y debe tener al menos 6 caracteres.'); return false;
+                e.preventDefault(); alert('La contrase├▒a es obligatoria y debe tener al menos 6 caracteres.'); return false;
             }
             const esCargo = document.querySelector('input[name="tipoRegistro"][value="cargo"]').checked;
             if (esCargo) {
@@ -568,7 +572,7 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
                     if (sel.value === '') { e.preventDefault(); alert('Seleccione un cargo en todos los bloques'); return false; }
                     if (sel.value === 'otros') {
                         const txt = b.querySelector('#cargoOtro_' + idx + ' input');
-                        if (!txt || txt.value.trim() === '') { e.preventDefault(); alert('Complete el nombre del cargo para la opción Otros'); return false; }
+                        if (!txt || txt.value.trim() === '') { e.preventDefault(); alert('Complete el nombre del cargo para la opci├│n Otros'); return false; }
                     }
                     const entradas = b.querySelectorAll('input[name^="horario_entrada['+idx+']"]');
                     const salidas = b.querySelectorAll('input[name^="horario_salida['+idx+']"]');
@@ -583,7 +587,7 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrarse') {
 
         // Inicializar
         document.addEventListener('DOMContentLoaded', function(){
-            // Si ya se eligió tipo cargo en el formulario (caso de reload), respetar
+            // Si ya se eligi├│ tipo cargo en el formulario (caso de reload), respetar
             mostrarCampoCondicional();
         });
     </script>

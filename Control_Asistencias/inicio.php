@@ -472,12 +472,14 @@ try {
                 <th>Nombre y Apellido</th>
                 <th>Cargo</th>
                 <th>Fecha registrada</th>
+                <th>Hora entrada</th>
+                <th>Hora salida</th>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($asistencias)): ?>
                 <tr>
-                    <td colspan="5" style="text-align: center;">No hay asistencias registradas para la fecha seleccionada.</td>
+                    <td colspan="7" style="text-align: center;">No hay asistencias registradas para la fecha seleccionada.</td>
                 </tr>
             <?php else: ?>
                 <?php $contadorA = 1; ?>
@@ -488,6 +490,8 @@ try {
                         <td><?php echo htmlspecialchars(trim($fila['nombre'] . ' ' . $fila['apellido'])); ?></td>
                         <td><?php echo htmlspecialchars($fila['cargo'] ?? 'N/A'); ?></td>
                         <td><?php echo !empty($fila['fecha']) ? date('d/m/Y', strtotime($fila['fecha'])) : '-'; ?></td>
+                        <td><?php echo !empty($fila['Entrada']) ? htmlspecialchars($fila['Entrada']) : '-'; ?></td>
+                        <td><?php echo isset($fila['Salida']) && $fila['Salida'] !== '' ? htmlspecialchars($fila['Salida']) : '-'; ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>

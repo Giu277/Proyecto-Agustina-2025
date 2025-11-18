@@ -1,54 +1,53 @@
 body {
-    background-color: #0a1a3c;
+    background-color: #b7f7f3;
     font-family: 'Segoe UI', Arial, sans-serif;
-    color: #fff;
+    color: #bff5e7;
     text-align: center;
     padding: 40px;
-  }
+}
 
-  table {
+table {
     width: 70%;
     margin: 0 auto;
     border-collapse: collapse;
-    background-color: #1e2b5a;
+    background-color: #517288;
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.4);
     border-radius: 10px;
     overflow: hidden;
-  }
-  
-  caption {
+}
+
+caption {
     caption-side: top;
     font-size: 1.5em;
     font-weight: bold;
     margin-bottom: 15px;
     color: #00bfff;
-  }
-  
+}
 
-  thead {
-    background-color: #102060;
-  }
-  
-  th {
+thead {
+    background-color: #e7d8d8;
+}
+
+th {
     padding: 10px;
-    border: 1px solid #333;
+    border: 1px solid #aed4dd;
     font-size: 1em;
-  }
+}
 
-  td {
+td {
     padding: 10px;
-    border: 1px solid #333;
+    border: 1px solid #faf6f6;
     text-align: center;
-    background-color: #223a7a;
-  }
-  
-  tfoot {
-    background-color: #061740;
+    background-color: #659aa1;
+}
+
+tfoot {
+    background-color: #5573b8;
     font-weight: bold;
     color: #00ffcc;
-  }
-  
-  tbody tr:hover {
-    background-color: #324c9b;
+}
+
+tbody tr:hover {
+    background-color: #4d8cb1;
     transition: background-color 0.3s;
-  }
+}
