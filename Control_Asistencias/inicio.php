@@ -1,5 +1,7 @@
 <?php
 session_start();
+// Asegurar horario local para que la hora guardada coincida con el momento del click
+date_default_timezone_set('America/Argentina/Buenos_Aires');
 require_once 'Conexion.php';
 
 // Obtener columnas de una tabla
@@ -447,55 +449,7 @@ try {
                 </div>
             </form>
         </div>
-    </div>   
-    <!-- Tabla de Asistencias Registradas (usa la fecha guardada en la tabla `asiste-c`) -->
-    <?php
-    $asistencias = [];
-    try {
-        $conexionA = new Conexion();
-        $pdoA = $conexionA->getConexion();
-        $fechaFiltro = date('Y-m-d');
-        $asistencias = obtenerAsistencias($pdoA, $fechaFiltro);
-    } catch (PDOException $e) {
-        $mensaje = 'Error al obtener asistencias registradas: ' . $e->getMessage();
-    }
-    ?>
-
-    
-    <table>
-        <caption>Asistencias Registradas - <?php echo date('d/m/Y'); ?></caption>
-        <thead>
-            <tr>
-                <th>Nº</th>
-                <th>Legajo</th>
-                <th>Nombre y Apellido</th>
-                <th>Cargo</th>
-                <th>Fecha registrada</th>
-                <th>Hora entrada</th>
-                <th>Hora salida</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php if (empty($asistencias)): ?>
-                <tr>
-                    <td colspan="7" style="text-align: center;">No hay asistencias registradas para la fecha seleccionada.</td>
-                </tr>
-            <?php else: ?>
-                <?php $contadorA = 1; ?>
-                <?php foreach ($asistencias as $fila): ?>
-                    <tr>
-                        <td><?php echo $contadorA++; ?></td>
-                        <td><?php echo htmlspecialchars($fila['legajo']); ?></td>
-                        <td><?php echo htmlspecialchars(trim($fila['nombre'] . ' ' . $fila['apellido'])); ?></td>
-                        <td><?php echo htmlspecialchars($fila['cargo'] ?? 'N/A'); ?></td>
-                        <td><?php echo !empty($fila['fecha']) ? date('d/m/Y', strtotime($fila['fecha'])) : '-'; ?></td>
-                        <td><?php echo !empty($fila['Entrada']) ? htmlspecialchars($fila['Entrada']) : '-'; ?></td>
-                        <td><?php echo isset($fila['Salida']) && $fila['Salida'] !== '' ? htmlspecialchars($fila['Salida']) : '-'; ?></td>
-                    </tr>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </tbody>
-    </table>
+    </div>
 
 </body>
 </html>

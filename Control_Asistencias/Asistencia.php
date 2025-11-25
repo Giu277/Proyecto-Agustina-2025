@@ -1,6 +1,10 @@
 <?php
+session_start();
+// Alinear la zona horaria para mostrar las horas tal como se registran
+date_default_timezone_set('America/Argentina/Buenos_Aires');
 require_once 'Conexion.php';
 
+// Clase original (se deja por compatibilidad con usos existentes)
 class Asistencia {
     private $pdo;
 
@@ -9,14 +13,13 @@ class Asistencia {
         $this->pdo = $conexion->getConexion();
     }
 
-    // Registrar asistencia (verifica si ya existe en el día)
     public function registrarAsistencia($legajo, $cargo) {
         try {
             $stmt = $this->pdo->prepare("
-                SELECT * FROM asistencia_c 
-                WHERE Id_asiste = ? AND Cargo = ? AND fecha = CURDATE()
+                SELECT 1 FROM asistencia_c 
+                WHERE Id_asiste = ? AND Cargo = ? AND fecha = CURDATE() LIMIT 1
             ");
-            $stmt->execute([$legajo]);
+            $stmt->execute([$legajo, $cargo]);
 
             if ($stmt->rowCount() > 0) {
                 return 'Ya registró su asistencia hoy.';
@@ -35,7 +38,6 @@ class Asistencia {
         }
     }
 
-    // Obtener ausentes del día
     public function obtenerAusentes() {
         try {
             $stmt = $this->pdo->prepare("
@@ -56,66 +58,83 @@ class Asistencia {
         }
     }
 }
+
+// Helpers para obtener la tabla de asistencias (mismo criterio que en inicio.php)
+function getColumns(PDO $pdo, string $table): array {
+    $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?");
+    $stmt->execute([$table]);
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
+
+function obtenerAsistencias(PDO $pdo, string $fecha): array {
+    $colsA = getColumns($pdo, 'asiste-c');
+    $hasA_legajo = in_array('legajo', $colsA, true) || in_array('Legajo', $colsA, true);
+    $hasA_Id_asiste = in_array('Id_asiste', $colsA, true) || in_array('id_asiste', $colsA, true);
+    $hasA_fecha = in_array('fecha', $colsA, true) || in_array('Fecha', $colsA, true);
+    $hasA_Entrada = in_array('Entrada', $colsA, true) || in_array('entrada', $colsA, true);
+    $hasA_Salida = in_array('Salida', $colsA, true) || in_array('salida', $colsA, true);
+
+    $joinConds = [];
+    if ($hasA_legajo) $joinConds[] = 'a.legajo = u.legajo';
+    if ($hasA_Id_asiste) $joinConds[] = 'a.Id_asiste = u.legajo';
+
+    $select = [];
+    if (!empty($joinConds)) {
+        $select[] = 'COALESCE(u.legajo, ' . ($hasA_legajo ? 'a.legajo' : 'a.Id_asiste') . ') AS legajo';
+        $select[] = "COALESCE(u.nombre,'') AS nombre";
+        $select[] = "COALESCE(u.apellido,'') AS apellido";
+        $select[] = "c.Denominacion AS cargo";
+    } else {
+        $select[] = $hasA_legajo ? 'a.legajo AS legajo' : ($hasA_Id_asiste ? 'a.Id_asiste AS legajo' : "NULL AS legajo");
+        $select[] = "'' AS nombre";
+        $select[] = "'' AS apellido";
+        $select[] = "'' AS cargo";
+    }
+    $select[] = $hasA_fecha ? 'a.fecha' : "NULL AS fecha";
+    $select[] = $hasA_Entrada ? 'a.Entrada' : "'' AS Entrada";
+    $select[] = $hasA_Salida ? "COALESCE(a.Salida,'') AS Salida" : "'' AS Salida";
+
+    $from = "FROM `asiste-c` a";
+    $join = !empty($joinConds) ? ' LEFT JOIN usuario u ON (' . implode(' OR ', $joinConds) . ') LEFT JOIN cargo c ON c.id_cargo = u.id_cargo' : '';
+    $where = $hasA_fecha ? 'WHERE a.fecha = ?' : '';
+    $order = !empty($joinConds) ? 'ORDER BY u.apellido, u.nombre ASC' : '';
+
+    $sql = 'SELECT ' . implode(",\n    ", $select) . "\n    " . $from . $join . "\n    " . $where . "\n    " . $order;
+    $st = $pdo->prepare($sql);
+    if ($hasA_fecha) {
+        $st->execute([$fecha]);
+    } else {
+        $st->execute();
+    }
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// Validar sesión
+if (!isset($_SESSION['legajo'])) {
+    header("Location: inicioSesion.php");
+    exit();
+}
+
+$mensaje = '';
+$nombreUsuario = $_SESSION['nombre'] ?? '';
+$legajo = $_SESSION['legajo'];
+$asistencias = [];
+
+try {
+    $conexion = new Conexion();
+    $pdo = $conexion->getConexion();
+    $asistencias = obtenerAsistencias($pdo, date('Y-m-d'));
+} catch (PDOException $e) {
+    $mensaje = 'Error al obtener asistencias registradas: ' . $e->getMessage();
+}
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body>
-     <!-- Barra de navegación con botón de Cerrar Sesión a la derecha -->
-    <nav class="navbar" aria-label="Barra de navegación principal">
-        <div class="nav-container">
-            <div class="nav-inner">
-                <div class="nav-logo">
-                    <!-- El logo se encuentra en la raíz del directorio del proyecto -->
-                    <img src="Logo.epet" alt="Logo E.P.E.T" />
-                </div>
-                <!-- Placeholder de items: aún no tienen enlaces funcionales -->
-                <a href="inicio.php" class="nav-item nav-active">Inicio</a>
-                <a href="Asistencia.php" class="nav-item">Asistencias Registradas</a>
-            </div>
-            <div class="nav-right">
-                <!-- Formulario de logout (envía POST a inicioSesion.php) -->
-                <form method="post" action="inicioSesion.php" style="margin:0;">
-                    <input type="submit" name="logout" value="Cerrar Sesión" style="background-color:#f44336;color:#fff;border:none;padding:6px 10px;border-radius:4px;cursor:pointer;">
-                </form>
-            </div>
-        </div>
-    </nav>
-    <table>
-        <caption>Asistencias Registradas - <?php echo date('d/m/Y'); ?></caption>
-        <thead>
-            <tr>
-                <th>Nº</th>
-                <th>Legajo</th>
-                <th>Nombre y Apellido</th>
-                <th>Cargo</th>
-                <th>Fecha registrada</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php if (empty($asistencias)): ?>
-                <tr>
-                    <td colspan="5" style="text-align: center;">No hay asistencias registradas para la fecha seleccionada.</td>
-                </tr>
-            <?php else: ?>
-                <?php $contadorA = 1; ?>
-                <?php foreach ($asistencias as $fila): ?>
-                    <tr>
-                        <td><?php echo $contadorA++; ?></td>
-                        <td><?php echo htmlspecialchars($fila['legajo']); ?></td>
-                        <td><?php echo htmlspecialchars(trim($fila['nombre'] . ' ' . $fila['apellido'])); ?></td>
-                        <td><?php echo htmlspecialchars($fila['cargo'] ?? 'N/A'); ?></td>
-                        <td><?php echo !empty($fila['fecha']) ? date('d/m/Y', strtotime($fila['fecha'])) : '-'; ?></td>
-                    </tr>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </tbody>
-    </table>
-<style>
+    <title>Asistencias Registradas</title>
+    <style>
         fieldset {
             margin: 20px 0;
             padding: 15px;
@@ -167,7 +186,6 @@ class Asistencia {
             margin: 10px 0;
             border-radius: 4px;
         }
-        /* Barra de navegación (vacía por ahora, con item activo marcado en azul) */
         :root { --nav-height: 56px; }
         .navbar {
             position: fixed;
@@ -175,13 +193,11 @@ class Asistencia {
             left: 0;
             width: 100%;
             height: var(--nav-height);
-            /* Azul similar a la imagen */
             background-color: #1f6d7a;
             border-bottom: 1px solid rgba(0,0,0,0.12);
             z-index: 1000;
             box-shadow: 0 2px 4px rgba(0,0,0,0.08);
         }
-        /* Barra interior centrada y logout pegado a la derecha del viewport */
         .nav-container {
             position: relative;
             width: 100%;
@@ -195,20 +211,19 @@ class Asistencia {
             align-items: center;
             gap: 10px;
             padding: 0 16px;
-            /* dejar espacio a la izquierda para el logo absoluto */
             padding-left: 96px;
             justify-content: flex-start;
         }
         .nav-logo {
             position: absolute;
-            left: 12px; /* pegado al borde izquierdo con un pequeño margen */
+            left: 12px;
             top: 50%;
             transform: translateY(-50%);
             display: flex;
             align-items: center;
         }
         .nav-logo img {
-            height: calc(var(--nav-height) - 14px); /* pequeño margen dentro de la barra */
+            height: calc(var(--nav-height) - 14px);
             width: auto;
             display: block;
             border-radius: 4px;
@@ -216,29 +231,27 @@ class Asistencia {
         }
         .nav-right {
             position: absolute;
-            right: 16px; /* pegado al borde derecho con pequeño margen */
+            right: 16px;
             top: 50%;
-            transform: translateY(-50%); /* centrar verticalmente */
+            transform: translateY(-50%);
             display: flex;
             align-items: center;
         }
         .nav-item {
-            color: #ffffff; /* texto blanco sobre barra azul */
+            color: #ffffff;
             padding: 8px 12px;
             border-radius: 4px;
             text-decoration: none;
             font-weight: 500;
-            cursor: default; /* aún no hay enlaces */
+            cursor: default;
             display: inline-block;
             line-height: 1;
             opacity: 0.95;
         }
         .nav-item.nav-active {
-            background-color: rgba(255,255,255,0.12); /* ligera marca */
+            background-color: rgba(255,255,255,0.12);
             color: #ffffff;
         }
-
-        /* Ajuste del contenido para no quedar oculto bajo la barra fija */
         body {
             font-family: Arial, sans-serif;
             max-width: 800px;
@@ -246,14 +259,72 @@ class Asistencia {
             padding: 20px;
             padding-top: calc(var(--nav-height) + 20px);
         }
-        .error {
-            background-color: #f44336;
-            color: white;
-        }
-        .exito {
-            background-color: #4CAF50;
-            color: white;
-        }
+        .error { background-color: #f44336; color: white; }
+        .exito { background-color: #4CAF50; color: white; }
     </style>
+</head>
+<body>
+    <nav class="navbar" aria-label="Barra de navegación principal">
+        <div class="nav-container">
+            <div class="nav-inner">
+                <div class="nav-logo">
+                    <img src="Logo.epet" alt="Logo E.P.E.T" />
+                </div>
+                <a href="inicio.php" class="nav-item">Inicio</a>
+                <a href="Asistencia.php" class="nav-item nav-active">Asistencias Registradas</a>
+            </div>
+            <div class="nav-right">
+                <form method="post" action="inicioSesion.php" style="margin:0;">
+                    <input type="submit" name="logout" value="Cerrar Sesión" style="background-color:#f44336;color:#fff;border:none;padding:6px 10px;border-radius:4px;cursor:pointer;">
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <?php if (!empty($mensaje)): ?>
+        <div class="mensaje <?php echo (strpos($mensaje, 'Error') !== false) ? 'error' : 'exito'; ?>">
+            <?php echo htmlspecialchars($mensaje); ?>
+        </div>
+    <?php endif; ?>
+
+    <div class="card" style="border:1px solid #e6e6e6;border-radius:8px;padding:14px;margin-top:10px;">
+        <h3 style="margin:0 0 6px 0;">Asistencias registradas</h3>
+        <p style="margin:0;color:#666;">Hola <?php echo htmlspecialchars($nombreUsuario); ?>, estas son las asistencias de hoy <?php echo date('d/m/Y'); ?>.</p>
+    </div>
+
+    <table>
+        <caption>Asistencias Registradas - <?php echo date('d/m/Y'); ?></caption>
+        <thead>
+            <tr>
+                <th>Nº</th>
+                <th>Legajo</th>
+                <th>Nombre y Apellido</th>
+                <th>Cargo</th>
+                <th>Fecha registrada</th>
+                <th>Hora entrada</th>
+                <th>Hora salida</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (empty($asistencias)): ?>
+                <tr>
+                    <td colspan="7" style="text-align: center;">No hay asistencias registradas para la fecha seleccionada.</td>
+                </tr>
+            <?php else: ?>
+                <?php $contadorA = 1; ?>
+                <?php foreach ($asistencias as $fila): ?>
+                    <tr>
+                        <td><?php echo $contadorA++; ?></td>
+                        <td><?php echo htmlspecialchars($fila['legajo']); ?></td>
+                        <td><?php echo htmlspecialchars(trim($fila['nombre'] . ' ' . $fila['apellido'])); ?></td>
+                        <td><?php echo htmlspecialchars($fila['cargo'] ?? 'N/A'); ?></td>
+                        <td><?php echo !empty($fila['fecha']) ? date('d/m/Y', strtotime($fila['fecha'])) : '-'; ?></td>
+                        <td><?php echo !empty($fila['Entrada']) ? htmlspecialchars($fila['Entrada']) : '-'; ?></td>
+                        <td><?php echo isset($fila['Salida']) && $fila['Salida'] !== '' ? htmlspecialchars($fila['Salida']) : '-'; ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </tbody>
+    </table>
 </body>
 </html>
