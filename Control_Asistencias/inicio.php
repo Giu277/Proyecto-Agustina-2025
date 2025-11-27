@@ -429,6 +429,7 @@ try {
                 <!-- Placeholder de items: aún no tienen enlaces funcionales -->
                 <a href="inicio.php" class="nav-item nav-active">Inicio</a>
                 <a href="Asistencia.php" class="nav-item">Asistencias Registradas</a>
+                <a href="Administrador.php" class="nav-item"> Administración</a>  
             </div>
             <div class="nav-right">
                 <!-- Formulario de logout (envía POST a inicioSesion.php) -->
