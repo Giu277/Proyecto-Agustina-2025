@@ -11,6 +11,26 @@ function getColumns(PDO $pdo, string $table): array {
     return $stmt->fetchAll(PDO::FETCH_COLUMN);
 }
 
+// Saber si una columna permite NULL
+function isColumnNullable(PDO $pdo, string $table, string $column): bool {
+    $stmt = $pdo->prepare("SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1");
+    $stmt->execute([$table, $column]);
+    $val = $stmt->fetchColumn();
+    return strtoupper((string)$val) === 'YES';
+}
+
+// Devuelve el nombre real de la columna si existe (comparación case-insensitive)
+function findColumn(array $cols, array $candidates): ?string {
+    foreach ($cols as $col) {
+        foreach ($candidates as $cand) {
+            if (strcasecmp($col, $cand) === 0) {
+                return $col;
+            }
+        }
+    }
+    return null;
+}
+
 // Obtener horario de entrada para el usuario (busca por id_cargo del usuario y día actual)
 // Flujo: 1) Obtener id_cargo del usuario 2) Buscar columna con cargo en tabla horario 3) Obtener Id_horario para hoy
 function getHorarioForUser(PDO $pdo, $legajo) {
@@ -61,36 +81,43 @@ function usuarioRegistroHoy(PDO $pdo, $legajo, array $cols): bool {
 
 // Insertar asistencia dinámicamente
 function insertarAsistencia(PDO $pdo, array $cols, $legajo, $idHorario, $fechaActual, $horaActual): bool {
-    $insertCols = [];
-    $values = [];
-    if (in_array('legajo',$cols,true) || in_array('Legajo',$cols,true)) {
-        $insertCols[] = in_array('legajo',$cols,true) ? 'legajo' : 'Legajo';
-        $values[] = $legajo;
-    } elseif (in_array('Id_asiste',$cols,true) || in_array('id_asiste',$cols,true)) {
-        $insertCols[] = in_array('Id_asiste',$cols,true) ? 'Id_asiste' : 'id_asiste';
-        $values[] = $legajo;
-    }
-    if (in_array('Id_horario',$cols,true) || in_array('id_horario',$cols,true)) { $insertCols[] = in_array('Id_horario',$cols,true) ? 'Id_horario' : 'id_horario'; $values[] = $idHorario; }
-    if (in_array('fecha',$cols,true) || in_array('Fecha',$cols,true)) { $insertCols[] = in_array('fecha',$cols,true) ? 'fecha' : 'Fecha'; $values[] = $fechaActual; }
-    if (in_array('Entrada',$cols,true) || in_array('entrada',$cols,true)) { $insertCols[] = in_array('Entrada',$cols,true) ? 'Entrada' : 'entrada'; $values[] = $horaActual; }
-    if (in_array('Salida',$cols,true) || in_array('salida',$cols,true)) { $insertCols[] = in_array('Salida',$cols,true) ? 'Salida' : 'salida'; $values[] = $horaActual; }
-    if (empty($insertCols)) return false;
-    $placeholders = array_fill(0, count($insertCols), '?');
-    $sql = "INSERT INTO `asiste-c` (`" . implode('`,`',$insertCols) . "`) VALUES (" . implode(',',$placeholders) . ")";
-    $st = $pdo->prepare($sql);
-    $st->execute($values);
-    // comprobación mínima: existe registro del día con el identificador
-    if (in_array('legajo',$cols,true) || in_array('Legajo',$cols,true)) {
-        $chk = $pdo->prepare("SELECT COUNT(*) FROM `asiste-c` WHERE `fecha` = ? AND `legajo` = ?");
-        $chk->execute([$fechaActual, $legajo]);
-    } elseif (in_array('Id_asiste',$cols,true) || in_array('id_asiste',$cols,true)) {
-        $chk = $pdo->prepare("SELECT COUNT(*) FROM `asiste-c` WHERE `fecha` = ? AND `Id_asiste` = ?");
-        $chk->execute([$fechaActual, $legajo]);
+    // Estructura fija de asiste-c. Salida se guarda como 00:00:00 para dejarla pendiente (columna es NOT NULL).
+    // Si el Id_asiste ya existe (PK), actualizamos el registro para el día actual; si no, insertamos.
+    $existing = $pdo->prepare("SELECT `fecha` FROM `asiste-c` WHERE `Id_asiste` = ? LIMIT 1");
+    $existing->execute([$legajo]);
+    $row = $existing->fetch(PDO::FETCH_ASSOC);
+
+    if ($row) {
+        // Reusar el mismo Id_asiste: actualizamos fecha, entrada y salida (pendiente)
+        $upd = $pdo->prepare("UPDATE `asiste-c` SET `fecha` = ?, `Entrada` = ?, `Salida` = '00:00:00' WHERE `Id_asiste` = ?");
+        $upd->execute([$fechaActual, $horaActual, $legajo]);
     } else {
-        $chk = $pdo->prepare("SELECT COUNT(*) FROM `asiste-c` WHERE `fecha` = ? AND `Entrada` = ?");
-        $chk->execute([$fechaActual, $horaActual]);
+        $st = $pdo->prepare("INSERT INTO `asiste-c` (`Id_asiste`,`fecha`,`Entrada`,`Salida`) VALUES (?,?,?,?)");
+        $st->execute([$legajo, $fechaActual, $horaActual, '00:00:00']);
     }
+
+    // Verificamos que la fila esté para hoy
+    $chk = $pdo->prepare("SELECT COUNT(*) FROM `asiste-c` WHERE `fecha` = ? AND `Id_asiste` = ?");
+    $chk->execute([$fechaActual, $legajo]);
     return ((int)$chk->fetchColumn()) > 0;
+}
+
+// Registrar salida en la fila del día (actualiza la columna de Salida si existe)
+function registrarSalida(PDO $pdo, array $cols, $legajo, string $fechaActual, string $horaSalida): bool {
+    // Estructura conocida: Id_asiste, fecha, Entrada, Salida (todas NOT NULL)
+    $st = $pdo->prepare("UPDATE `asiste-c` SET `Salida` = ? WHERE `Id_asiste` = ? AND `fecha` = ? LIMIT 1");
+    $st->execute([$horaSalida, $legajo, $fechaActual]);
+    if ($st->rowCount() > 0) return true;
+
+    // Reintento sin filtro de fecha por si la fecha guardada difiere
+    $st2 = $pdo->prepare("UPDATE `asiste-c` SET `Salida` = ? WHERE `Id_asiste` = ? ORDER BY `fecha` DESC LIMIT 1");
+    $st2->execute([$horaSalida, $legajo]);
+    if ($st2->rowCount() > 0) return true;
+
+    // Validación mínima
+    $chk = $pdo->prepare("SELECT 1 FROM `asiste-c` WHERE `Id_asiste` = ? AND `Salida` = ? LIMIT 1");
+    $chk->execute([$legajo, $horaSalida]);
+    return (bool)$chk->fetchColumn();
 }
 
 // Obtener asistencias para una fecha (construcción segura según columnas)
@@ -138,8 +165,9 @@ function obtenerAusentes(PDO $pdo): array {
 
 // Obtener registro del usuario hoy
 function getUserRegistroHoy(PDO $pdo, $legajo) {
-    $st = $pdo->prepare("SELECT `Entrada`,`Salida`,`fecha` FROM `asiste-c` WHERE (`legajo` = ? OR `Id_asiste` = ?) AND `fecha` = CURDATE() LIMIT 1");
-    $st->execute([$legajo,$legajo]);
+    // Estructura conocida de asiste-c: Id_asiste, fecha, Entrada, Salida
+    $st = $pdo->prepare("SELECT `Entrada`,`Salida`,`fecha` FROM `asiste-c` WHERE `Id_asiste` = ? AND `fecha` = CURDATE() LIMIT 1");
+    $st->execute([$legajo]);
     return $st->fetch(PDO::FETCH_ASSOC);
 }
 
@@ -180,6 +208,33 @@ if (isset($_POST['enviar']) && $_POST['enviar'] == 'Registrar Asistencia' && $us
     }
 }
 
+// Procesar registro de salida (botón rojo "Salida")
+if (isset($_POST['enviar_salida']) && $usuarioLogueado) {
+    $fechaActual = date('Y-m-d');
+    $horaActual = date('H:i:s');
+    try {
+        $conexion = new Conexion();
+        $pdo = $conexion->getConexion();
+        $cols = getColumns($pdo, 'asiste-c');
+        $estadoHoy = getUserRegistroHoy($pdo, $legajo);
+        if (!$estadoHoy) {
+            $mensaje = 'Primero registre su entrada.';
+        } else {
+            $salidaActual = $estadoHoy['Salida'] ?? null;
+            $entradaActual = $estadoHoy['Entrada'] ?? null;
+            $salidaPendienteHoy = ($salidaActual === null || $salidaActual === '' || $salidaActual === '00:00:00' || $salidaActual === $entradaActual);
+            if (!$salidaPendienteHoy) {
+                $mensaje = 'Ya registró su salida hoy.';
+            } else {
+                $ok = registrarSalida($pdo, $cols, $legajo, $fechaActual, $horaActual);
+                $mensaje = $ok ? 'Salida registrada correctamente.' : 'No se pudo registrar la salida.';
+            }
+        }
+    } catch (PDOException $e) {
+        $mensaje = 'Error al registrar salida: ' . $e->getMessage();
+    }
+}
+
 // Obtener ausentes del día
 $ausentes = [];
 try {
@@ -193,11 +248,23 @@ try {
 // Comprobar si el usuario ya registró asistencia hoy (para mostrar estado)
 $yaRegistro = false;
 $horaRegistrada = null;
+$salidaRegistrada = null;
+$salidaPendiente = true;
 try {
     $conexionEstado = new Conexion();
     $pdoEstado = $conexionEstado->getConexion();
     $filaEst = getUserRegistroHoy($pdoEstado, $legajo);
-    if ($filaEst) { $yaRegistro = true; $horaRegistrada = $filaEst['Entrada']; }
+    if ($filaEst) { 
+        $yaRegistro = true; 
+        $horaRegistrada = $filaEst['Entrada']; 
+        $salidaRegistrada = $filaEst['Salida']; 
+        // Salida pendiente si está vacía, es cero (00:00:00 o 00:00:00.000000) o igual a la entrada
+        $esCero = ($salidaRegistrada === '00:00:00' || $salidaRegistrada === '00:00:00.000000');
+        $igualEntrada = ($horaRegistrada !== null && $salidaRegistrada === $horaRegistrada);
+        if ($salidaRegistrada !== null && $salidaRegistrada !== '' && !$esCero && !$igualEntrada) {
+            $salidaPendiente = false;
+        }
+    }
 } catch (PDOException $e) {
     // no crítico; dejamos $yaRegistro = false
 }
@@ -438,18 +505,33 @@ try {
                                 <path d="M20 6L9 17l-5-5" stroke="#2e7d32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
                             Registrado hoy a las <?php echo htmlspecialchars($horaRegistrada); ?>
+                            <?php if ($salidaPendiente): ?>
+                                <span style="color:#c57f17;font-weight:600;">| Salida pendiente</span>
+                            <?php else: ?>
+                                <span style="color:#1f6d7a;font-weight:600;">| Salida: <?php echo htmlspecialchars($salidaRegistrada); ?></span>
+                            <?php endif; ?>
                         </span>
                     <?php else: ?>
                         <span style="color:#666;">Ninguna asistencia registrada hoy.</span>
                     <?php endif; ?>
                 </div>
 
-                <div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
                     <input type="submit" name="enviar" value="Registrar Asistencia" <?php echo $yaRegistro ? 'disabled' : ''; ?> style="background-color: #4CAF50; color: white; padding:10px 14px; border:none; border-radius:6px; cursor:pointer; <?php echo $yaRegistro ? 'opacity:0.6;cursor:not-allowed;' : ''; ?>">
+                    <input type="submit" name="enviar_salida" value="Salida" <?php echo $salidaPendiente ? '' : 'disabled'; ?> style="background-color:#e53935;color:#fff;padding:10px 14px;border:none;border-radius:6px;cursor:pointer;<?php echo $salidaPendiente ? '' : 'opacity:0.6;cursor:not-allowed;'; ?>">
                 </div>
             </form>
+            <?php if ($yaRegistro): ?>
+                <div style="margin-top:10px;">
+                    <?php if ($salidaPendiente): ?>
+                        <span style="color:#c57f17;font-weight:600;">Salida pendiente</span>
+                    <?php else: ?>
+                        <span style="color:#1f6d7a;font-weight:600;">Salida registrada a las <?php echo htmlspecialchars($salidaRegistrada); ?></span>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </div>
-    </div>
+    </div>   
 
 </body>
 </html>

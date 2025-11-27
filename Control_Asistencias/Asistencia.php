@@ -30,7 +30,9 @@ class Asistencia {
                 INSERT INTO asistencia_c (Id_asiste, fecha, Entrada, Salida, Cargo) 
                 VALUES (?, CURDATE(), ?, ?, ?)
             ");
-            $stmt->execute([$legajo, $horaActual, $horaActual, $cargo]);
+            $salidaNull = isColumnNullable($this->pdo, 'asistencia_c', 'Salida');
+            $salidaValor = $salidaNull ? null : $horaActual;
+            $stmt->execute([$legajo, $horaActual, $salidaValor, $cargo]);
 
             return 'Asistencia registrada correctamente.';
         } catch (PDOException $e) {
@@ -64,6 +66,13 @@ function getColumns(PDO $pdo, string $table): array {
     $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?");
     $stmt->execute([$table]);
     return $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
+
+function isColumnNullable(PDO $pdo, string $table, string $column): bool {
+    $stmt = $pdo->prepare("SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1");
+    $stmt->execute([$table, $column]);
+    $val = $stmt->fetchColumn();
+    return strtoupper((string)$val) === 'YES';
 }
 
 function obtenerAsistencias(PDO $pdo, string $fecha): array {
