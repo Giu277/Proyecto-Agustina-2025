@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 // Alinear la zona horaria para mostrar las horas tal como se registran
 date_default_timezone_set('America/Argentina/Buenos_Aires');
@@ -143,134 +143,8 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Asistencias Registradas</title>
-    <style>
-        fieldset {
-            margin: 20px 0;
-            padding: 15px;
-            border: 2px solid #ccc;
-            border-radius: 5px;
-        }
-        legend {
-            font-weight: bold;
-            padding: 0 10px;
-        }
-        label {
-            display: block;
-            margin-top: 10px;
-        }
-        select {
-            width: 100%;
-            padding: 8px;
-            margin-top: 5px;
-            box-sizing: border-box;
-        }
-        input[type="submit"] {
-            margin-top: 15px;
-            padding: 10px 20px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        input[type="submit"]:hover {
-            background-color: #45a049;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #4CAF50;
-            color: white;
-        }
-        .mensaje {
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 4px;
-        }
-        :root { --nav-height: 56px; }
-        .navbar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: var(--nav-height);
-            background-color: #1f6d7a;
-            border-bottom: 1px solid rgba(0,0,0,0.12);
-            z-index: 1000;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-        }
-        .nav-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-        }
-        .nav-inner {
-            max-width: 800px;
-            height: 100%;
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 0 16px;
-            padding-left: 96px;
-            justify-content: flex-start;
-        }
-        .nav-logo {
-            position: absolute;
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            display: flex;
-            align-items: center;
-        }
-        .nav-logo img {
-            height: calc(var(--nav-height) - 14px);
-            width: auto;
-            display: block;
-            border-radius: 4px;
-            object-fit: contain;
-        }
-        .nav-right {
-            position: absolute;
-            right: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            display: flex;
-            align-items: center;
-        }
-        .nav-item {
-            color: #ffffff;
-            padding: 8px 12px;
-            border-radius: 4px;
-            text-decoration: none;
-            font-weight: 500;
-            cursor: default;
-            display: inline-block;
-            line-height: 1;
-            opacity: 0.95;
-        }
-        .nav-item.nav-active {
-            background-color: rgba(255,255,255,0.12);
-            color: #ffffff;
-        }
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 20px;
-            padding-top: calc(var(--nav-height) + 20px);
-        }
-        .error { background-color: #f44336; color: white; }
-        .exito { background-color: #4CAF50; color: white; }
-    </style>
+    <link rel="stylesheet" href="styles.css">
+    
 </head>
 <body>
     <nav class="navbar" aria-label="Barra de navegación principal">
@@ -337,3 +211,5 @@ try {
     </table>
 </body>
 </html>
+
+
