@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 session_start();
 require_once 'Conexion.php';
 
@@ -153,20 +153,22 @@ if (isset($_POST['enviar']) && $_POST['enviar'] === 'Registrarse') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crear Cuenta - Control de Asistencia Escolar</title>
     <link rel="stylesheet" href="styles.css">
-    
 </head>
-<body>
+<body class="auth-page">
     <?php if (!empty($mensaje)): ?>
         <div class="mensaje <?php echo (strpos($mensaje, 'Error') !== false || strpos($mensaje, 'incorrecto') !== false || strpos($mensaje, 'no encontrado') !== false || strpos($mensaje, 'ya está registrado') !== false) ? 'error' : 'exito'; ?>">
             <?php echo htmlspecialchars($mensaje); ?>
         </div>
     <?php endif; ?>
 
-    <form method="post" action="crearcuenta.php" id="formRegistro">
-        <fieldset>
-            <legend>Crear Nueva Cuenta</legend>
-            <p>Complete sus datos:</p>
-            
+    <div class="auth-card wide">
+        <div class="auth-logo">
+            <img src="Logo.epet" alt="Logo E.P.E.T" />
+        </div>
+        <h1>Crear cuenta</h1>
+        <p class="auth-subtitle">Complete sus datos</p>
+
+        <form method="post" action="crearcuenta.php" id="formRegistro" class="auth-form">
             <label for="nomReg">Nombre</label>
             <input type="text" name="nombreRegistro" id="nomReg" required>
             
@@ -196,12 +198,12 @@ if (isset($_POST['enviar']) && $_POST['enviar'] === 'Registrarse') {
                 <input type="text" name="materiaRegistro" id="materiaReg" placeholder="Ej: Matemática, Lengua, etc.">
             </div>
 
-            <input type="submit" name="enviar" value="Registrarse">
-            <p>E.P.E.T Nº 20</p>
-        </fieldset>
-    </form>
-    <div class="link-registro">
-        <p><a href="inicioSesion.php">Volver al inicio de sesión</a></p>
+            <input type="submit" name="enviar" value="Registrarse" class="btn-primary">
+            <p class="auth-footer">E.P.E.T Nº 20</p>
+        </form>
+        <div class="link-registro">
+            <p><a href="inicioSesion.php">Volver al inicio de sesión</a></p>
+        </div>
     </div>
     
     <script>
@@ -317,4 +319,3 @@ if (isset($_POST['enviar']) && $_POST['enviar'] === 'Registrarse') {
     </script>
 </body>
 </html>
-

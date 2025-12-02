@@ -1,18 +1,15 @@
-﻿<?php
+<?php
 session_start();
-// Alinear la zona horaria para mostrar las horas tal como se registran
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require_once 'Conexion.php';
 
-// Clase original (se deja por compatibilidad con usos existentes)
+// Clase original (compatibilidad)
 class Asistencia {
     private $pdo;
-
     public function __construct() {
         $conexion = new Conexion();
         $this->pdo = $conexion->getConexion();
     }
-
     public function registrarAsistencia($legajo, $cargo) {
         try {
             $stmt = $this->pdo->prepare("
@@ -20,11 +17,7 @@ class Asistencia {
                 WHERE Id_asiste = ? AND Cargo = ? AND fecha = CURDATE() LIMIT 1
             ");
             $stmt->execute([$legajo, $cargo]);
-
-            if ($stmt->rowCount() > 0) {
-                return 'Ya registró su asistencia hoy.';
-            }
-
+            if ($stmt->rowCount() > 0) return 'Ya registró su asistencia hoy.';
             $horaActual = date('H:i:s');
             $stmt = $this->pdo->prepare("
                 INSERT INTO asistencia_c (Id_asiste, fecha, Entrada, Salida, Cargo) 
@@ -33,13 +26,11 @@ class Asistencia {
             $salidaNull = isColumnNullable($this->pdo, 'asistencia_c', 'Salida');
             $salidaValor = $salidaNull ? null : $horaActual;
             $stmt->execute([$legajo, $horaActual, $salidaValor, $cargo]);
-
             return 'Asistencia registrada correctamente.';
         } catch (PDOException $e) {
             return 'Error al registrar asistencia: ' . $e->getMessage();
         }
     }
-
     public function obtenerAusentes() {
         try {
             $stmt = $this->pdo->prepare("
@@ -61,7 +52,7 @@ class Asistencia {
     }
 }
 
-// Helpers para obtener la tabla de asistencias (mismo criterio que en inicio.php)
+// Helpers
 function getColumns(PDO $pdo, string $table): array {
     $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?");
     $stmt->execute([$table]);
@@ -73,6 +64,17 @@ function isColumnNullable(PDO $pdo, string $table, string $column): bool {
     $stmt->execute([$table, $column]);
     $val = $stmt->fetchColumn();
     return strtoupper((string)$val) === 'YES';
+}
+
+function getCargoUsuario(PDO $pdo, $legajo): string {
+    try {
+        $st = $pdo->prepare("SELECT c.Denominacion FROM usuario u INNER JOIN cargo c ON c.id_cargo = u.id_cargo WHERE u.legajo = ? LIMIT 1");
+        $st->execute([$legajo]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        return $r['Denominacion'] ?? '';
+    } catch (PDOException $e) {
+        return '';
+    }
 }
 
 function obtenerAsistencias(PDO $pdo, string $fecha): array {
@@ -118,6 +120,12 @@ function obtenerAsistencias(PDO $pdo, string $fecha): array {
     return $st->fetchAll(PDO::FETCH_ASSOC);
 }
 
+function formatearHora(?string $valor): string {
+    if (empty($valor)) return '-';
+    $t = strtotime($valor);
+    return $t ? date('H:i', $t) : htmlspecialchars($valor);
+}
+
 // Validar sesión
 if (!isset($_SESSION['legajo'])) {
     header("Location: inicioSesion.php");
@@ -128,11 +136,13 @@ $mensaje = '';
 $nombreUsuario = $_SESSION['nombre'] ?? '';
 $legajo = $_SESSION['legajo'];
 $asistencias = [];
+$cargoUsuario = '';
 
 try {
     $conexion = new Conexion();
     $pdo = $conexion->getConexion();
     $asistencias = obtenerAsistencias($pdo, date('Y-m-d'));
+    $cargoUsuario = getCargoUsuario($pdo, $legajo);
 } catch (PDOException $e) {
     $mensaje = 'Error al obtener asistencias registradas: ' . $e->getMessage();
 }
@@ -144,7 +154,6 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Asistencias Registradas</title>
     <link rel="stylesheet" href="styles.css">
-    
 </head>
 <body>
     <nav class="navbar" aria-label="Barra de navegación principal">
@@ -157,59 +166,81 @@ try {
                 <a href="Asistencia.php" class="nav-item nav-active">Asistencias Registradas</a>
             </div>
             <div class="nav-right">
-                <form method="post" action="inicioSesion.php" style="margin:0;">
-                    <input type="submit" name="logout" value="Cerrar Sesión" style="background-color:#f44336;color:#fff;border:none;padding:6px 10px;border-radius:4px;cursor:pointer;">
-                </form>
+                <div class="nav-burger">
+                    <button type="button" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menú" onclick="toggleBurgerMenu()">&#9776;</button>
+                    <div class="burger-menu" id="burger-menu">
+                        <?php if (isset($cargoUsuario) && strcasecmp($cargoUsuario, 'Preceptor') === 0): ?>
+                        <a href="../crearcargo.php">Cargo</a>
+                        <a href="Administrador.php">Administracion</a>
+                        <?php endif; ?>
+                            <button type="submit" name="logout">Cerrar sesion</button>
+                            <button type="submit" name="logout">Cerrar sesión</button>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
     </nav>
 
-    <?php if (!empty($mensaje)): ?>
-        <div class="mensaje <?php echo (strpos($mensaje, 'Error') !== false) ? 'error' : 'exito'; ?>">
-            <?php echo htmlspecialchars($mensaje); ?>
-        </div>
-    <?php endif; ?>
+    <div class="cards-wrapper" style="max-width: 1100px; margin-top: 20px;">
+        <?php if (!empty($mensaje)): ?>
+            <div class="mensaje <?php echo (strpos($mensaje, 'Error') !== false) ? 'error' : 'exito'; ?>">
+                <?php echo htmlspecialchars($mensaje); ?>
+            </div>
+        <?php endif; ?>
 
-    <div class="card" style="border:1px solid #e6e6e6;border-radius:8px;padding:14px;margin-top:10px;">
-        <h3 style="margin:0 0 6px 0;">Asistencias registradas</h3>
-        <p style="margin:0;color:#666;">Hola <?php echo htmlspecialchars($nombreUsuario); ?>, estas son las asistencias de hoy <?php echo date('d/m/Y'); ?>.</p>
+        <div class="card">
+            <h3 style="margin:0 0 6px 0;">Asistencias registradas</h3>
+            <p style="margin:0;color:#eaf6ff;">Hola <?php echo htmlspecialchars($nombreUsuario); ?>, estas son las asistencias de hoy <?php echo date('d/m/Y'); ?>.</p>
+        </div>
+
+        <div class="card table-card">
+            <h3>Asistencias registradas - <?php echo date('d/m/Y'); ?></h3>
+            <table class="tabla-asistencias">
+                <tr>
+                    <th>Nro</th>
+                    <th>Legajo</th>
+                    <th>Nombre y Apellido</th>
+                    <th>Cargo</th>
+                    <th>Fecha</th>
+                    <th>Entrada</th>
+                    <th>Salida</th>
+                </tr>
+                <?php if (empty($asistencias)): ?>
+                    <tr>
+                        <td colspan="7" style="text-align: center;">No hay asistencias registradas para la fecha seleccionada.</td>
+                    </tr>
+                <?php else: ?>
+                    <?php $contadorA = 1; ?>
+                    <?php foreach ($asistencias as $fila): ?>
+                        <tr>
+                            <td><?php echo $contadorA++; ?></td>
+                            <td><?php echo htmlspecialchars($fila['legajo']); ?></td>
+                            <td><?php echo htmlspecialchars(trim(($fila['nombre'] ?? '') . ' ' . ($fila['apellido'] ?? ''))); ?></td>
+                            <td><?php echo htmlspecialchars($fila['cargo'] ?? 'N/A'); ?></td>
+                            <td><?php echo !empty($fila['fecha']) ? date('d/m/Y', strtotime($fila['fecha'])) : '-'; ?></td>
+                            <td><?php echo formatearHora($fila['Entrada'] ?? ''); ?></td>
+                            <td><?php echo formatearHora($fila['Salida'] ?? ''); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </table>
+        </div>
     </div>
 
-    <table>
-        <caption>Asistencias Registradas - <?php echo date('d/m/Y'); ?></caption>
-        <thead>
-            <tr>
-                <th>Nº</th>
-                <th>Legajo</th>
-                <th>Nombre y Apellido</th>
-                <th>Cargo</th>
-                <th>Fecha registrada</th>
-                <th>Hora entrada</th>
-                <th>Hora salida</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php if (empty($asistencias)): ?>
-                <tr>
-                    <td colspan="7" style="text-align: center;">No hay asistencias registradas para la fecha seleccionada.</td>
-                </tr>
-            <?php else: ?>
-                <?php $contadorA = 1; ?>
-                <?php foreach ($asistencias as $fila): ?>
-                    <tr>
-                        <td><?php echo $contadorA++; ?></td>
-                        <td><?php echo htmlspecialchars($fila['legajo']); ?></td>
-                        <td><?php echo htmlspecialchars(trim($fila['nombre'] . ' ' . $fila['apellido'])); ?></td>
-                        <td><?php echo htmlspecialchars($fila['cargo'] ?? 'N/A'); ?></td>
-                        <td><?php echo !empty($fila['fecha']) ? date('d/m/Y', strtotime($fila['fecha'])) : '-'; ?></td>
-                        <td><?php echo !empty($fila['Entrada']) ? htmlspecialchars($fila['Entrada']) : '-'; ?></td>
-                        <td><?php echo isset($fila['Salida']) && $fila['Salida'] !== '' ? htmlspecialchars($fila['Salida']) : '-'; ?></td>
-                    </tr>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </tbody>
-    </table>
+    <script>
+        function toggleBurgerMenu() {
+            const menu = document.getElementById('burger-menu');
+            if (!menu) return;
+            menu.classList.toggle('open');
+        }
+        document.addEventListener('click', function(ev) {
+            const menu = document.getElementById('burger-menu');
+            const btn = document.querySelector('.nav-burger button');
+            if (!menu || !btn) return;
+            if (menu.contains(ev.target) || btn.contains(ev.target)) return;
+            menu.classList.remove('open');
+        });
+    </script>
 </body>
 </html>
-
-

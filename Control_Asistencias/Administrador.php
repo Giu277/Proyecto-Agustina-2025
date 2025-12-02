@@ -3,7 +3,6 @@ session_start();
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require_once 'Conexion.php';
 
-// Helpers
 function getColumns(PDO $pdo, string $table): array {
     $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?");
     $stmt->execute([$table]);
@@ -38,7 +37,7 @@ function obtenerAsistencias(PDO $pdo): array {
         $select[] = 'COALESCE(u.legajo, ' . ($hasA_legajo ? 'a.legajo' : 'a.Id_asiste') . ') AS legajo';
         $select[] = "COALESCE(u.nombre,'') AS nombre";
         $select[] = "COALESCE(u.apellido,'') AS apellido";
-        $select[] = "c.`Denominacion` AS cargo"; 
+        $select[] = "c.Denominacion AS cargo";
     } else {
         $select[] = $hasA_legajo ? 'a.legajo AS legajo' : ($hasA_Id_asiste ? 'a.Id_asiste AS legajo' : "NULL AS legajo");
         $select[] = "'' AS nombre";
@@ -51,9 +50,8 @@ function obtenerAsistencias(PDO $pdo): array {
     $select[] = $hasA_Salida ? "COALESCE(a.Salida,'') AS Salida" : "'' AS Salida";
     $select[] = "CASE
                     WHEN a.Entrada IS NULL THEN 'Ausente'
-                    WHEN a.Entrada <= c.Entrada THEN 'A horario'
-                    WHEN a.Entrada > c.Entrada THEN 'Tarde'
-                    ELSE 'Sin dato'
+                    WHEN a.Salida IS NULL OR a.Salida = '' OR a.Salida = '00:00:00' THEN 'Presente'
+                    ELSE 'Salida registrada'
                  END AS estado";
 
     $from = "FROM `asiste-c` a";
@@ -66,7 +64,6 @@ function obtenerAsistencias(PDO $pdo): array {
     return $st->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Validación sesión
 if (!isset($_SESSION['legajo'])) {
     header("Location: inicioSesion.php");
     exit();
@@ -94,7 +91,6 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Asistencias Registradas</title>
     <link rel="stylesheet" href="styles.css">
-    
 </head>
 <body>
 
@@ -109,9 +105,10 @@ try {
             </div>
             <div class="nav-right">
                 <div class="nav-burger">
-                    <button type="button" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menú" onclick="toggleBurgerMenu()">☰</button>
+                    <button type="button" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menú" onclick="toggleBurgerMenu()">&#9776;</button>
                     <div class="burger-menu" id="burger-menu">
                         <?php if (isset($cargoUsuario) && strcasecmp($cargoUsuario, 'Preceptor') === 0): ?>
+                        <a href="../crearcargo.php">Cargo</a>
                         <a href="Administrador.php">Administración</a>
                         <?php endif; ?>
                         <form method="post" action="inicioSesion.php" style="margin:0;">
@@ -123,40 +120,45 @@ try {
         </div>
     </nav>
 
-    <?php if (!empty($mensaje)): ?>
-        <div class="mensaje <?php echo (strpos($mensaje, 'Error') !== false) ? 'error' : 'exito'; ?>">
-            <?php echo htmlspecialchars($mensaje); ?>
-        </div>
-    <?php endif; ?>
+    <div class="cards-wrapper" style="max-width:1100px; margin-top:20px;">
+        <?php if (!empty($mensaje)): ?>
+            <div class="mensaje <?php echo (strpos($mensaje, 'Error') !== false) ? 'error' : 'exito'; ?>">
+                <?php echo htmlspecialchars($mensaje); ?>
+            </div>
+        <?php endif; ?>
 
-<?php if (!empty($asistencias)): ?>
-    <table class="tabla-asistencias">
-        <tr>
-            <th>Legajo</th>
-            <th>Nombre</th>
-            <th>Apellido</th>
-            <th>Cargo</th>
-            <th>Fecha</th>
-            <th>Entrada</th>
-            <th>Salida</th>
-            <th>Estado</th>
-        </tr>
-        <?php foreach ($asistencias as $row): ?>
-            <tr>
-                <td><?php echo htmlspecialchars($row['legajo']); ?></td>
-                <td><?php echo htmlspecialchars($row['nombre']); ?></td>
-                <td><?php echo htmlspecialchars($row['apellido']); ?></td>
-                <td><?php echo htmlspecialchars($row['cargo']); ?></td>
-                <td><?php echo htmlspecialchars($row['fecha']); ?></td>
-                <td><?php echo htmlspecialchars($row['Entrada']); ?></td>
-                <td><?php echo htmlspecialchars($row['Salida']); ?></td>
-                <td><?php echo htmlspecialchars($row['estado']); ?></td>
-            </tr>
-        <?php endforeach; ?>
-    </table>
-<?php else: ?>
-    <p>No hay asistencias registradas para mostrar.</p>
-<?php endif; ?>
+        <div class="card">
+            <h2>Asistencias registradas</h2>
+            <?php if (!empty($asistencias)): ?>
+                <table class="tabla-asistencias">
+                    <tr>
+                        <th>Legajo</th>
+                        <th>Nombre</th>
+                        <th>Apellido</th>
+                        <th>Cargo</th>
+                        <th>Fecha</th>
+                        <th>Entrada</th>
+                        <th>Salida</th>
+                        <th>Estado</th>
+                    </tr>
+                    <?php foreach ($asistencias as $row): ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars($row['legajo']); ?></td>
+                            <td><?php echo htmlspecialchars($row['nombre']); ?></td>
+                            <td><?php echo htmlspecialchars($row['apellido']); ?></td>
+                            <td><?php echo htmlspecialchars($row['cargo']); ?></td>
+                            <td><?php echo htmlspecialchars($row['fecha']); ?></td>
+                            <td><?php echo htmlspecialchars($row['Entrada']); ?></td>
+                            <td><?php echo htmlspecialchars($row['Salida']); ?></td>
+                            <td><?php echo htmlspecialchars($row['estado']); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            <?php else: ?>
+                <p>No hay asistencias registradas para mostrar.</p>
+            <?php endif; ?>
+        </div>
+    </div>
 
     <script>
         function toggleBurgerMenu() {
@@ -174,5 +176,3 @@ try {
     </script>
 </body>
 </html>
-
-

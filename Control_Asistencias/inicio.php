@@ -278,14 +278,14 @@ try {
             </div>
             <div class="nav-right">
                 <div class="nav-burger">
-                    <button type="button" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menú" onclick="toggleBurgerMenu()">☰</button>
+                    <button type="button" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menu" onclick="toggleBurgerMenu()">&#9776;</button>
                     <div class="burger-menu" id="burger-menu">
                         <?php if (isset($cargoUsuario) && strcasecmp($cargoUsuario, 'Preceptor') === 0): ?>
                         <a href="../crearcargo.php">Cargo</a>
-                        <a href="Administrador.php">Administración</a>
+                        <a href="Administrador.php">Administracion</a>
                         <?php endif; ?>
                         <form method="post" action="inicioSesion.php" style="margin:0;">
-                            <button type="submit" name="logout" style="width:100%;text-align:left;border:none;background:none;padding:10px 12px;cursor:pointer;">Cerrar Sesión</button>
+                            <button type="submit" name="logout" style="width:100%;text-align:left;border:none;background:none;padding:10px 12px;cursor:pointer;">Cerrar Sesion</button>
                         </form>
                     </div>
                 </div>
@@ -322,7 +322,7 @@ try {
             </div>
             <div style="flex:1;">
                 <p style="margin:0;font-weight:700;font-size:1.25rem;">Bienvenido, <?php echo htmlspecialchars($nombreUsuario); ?>!</p>
-                <p style="margin:6px 0 0 0;color:#666;">E.P.E.T N° 20</p>
+                <p style="margin:6px 0 0 0;color:#666;">E.P.E.T N&ordm; 20</p>
             </div>
         </div>
 
@@ -401,5 +401,7 @@ try {
     </script>
 </body>
 </html>
+
+
 
 
