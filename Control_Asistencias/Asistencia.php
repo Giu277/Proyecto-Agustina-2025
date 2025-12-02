@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require_once 'Conexion.php';
@@ -17,7 +17,7 @@ class Asistencia {
                 WHERE Id_asiste = ? AND Cargo = ? AND fecha = CURDATE() LIMIT 1
             ");
             $stmt->execute([$legajo, $cargo]);
-            if ($stmt->rowCount() > 0) return 'Ya registró su asistencia hoy.';
+            if ($stmt->rowCount() > 0) return 'Ya registrÃ³ su asistencia hoy.';
             $horaActual = date('H:i:s');
             $stmt = $this->pdo->prepare("
                 INSERT INTO asistencia_c (Id_asiste, fecha, Entrada, Salida, Cargo) 
@@ -195,7 +195,7 @@ function obtenerAusentesDia(PDO $pdo, string $fecha): array {
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Validar sesión
+// Validar sesiÃ³n
 if (!isset($_SESSION['legajo'])) {
     header("Location: inicioSesion.php");
     exit();
@@ -261,7 +261,7 @@ if ($pdo) {
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <nav class="navbar" aria-label="Barra de navegación principal">
+    <nav class="navbar" aria-label="Barra de navegaciÃ³n principal">
         <div class="nav-container">
             <div class="nav-inner">
                 <div class="nav-logo">
@@ -272,14 +272,14 @@ if ($pdo) {
             </div>
             <div class="nav-right">
                 <div class="nav-burger">
-                    <button type="button" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menú" onclick="toggleBurgerMenu()">&#9776;</button>
+                    <button type="button" aria-haspopup="true" aria-expanded="false" aria-label="Abrir menÃº" onclick="toggleBurgerMenu()">&#9776;</button>
                     <div class="burger-menu" id="burger-menu">
                         <?php if (isset($cargoUsuario) && strcasecmp($cargoUsuario, 'Preceptor') === 0): ?>
                         <a href="../crearcargo.php">Cargo</a>
                         <a href="Administrador.php">Administracion</a>
                         <?php endif; ?>
-                            <button type="submit" name="logout">Cerrar sesion</button>
-                            <button type="submit" name="logout">Cerrar sesión</button>
+                                                    <form method="post" action="inicioSesion.php" style="margin:0;">
+                            <button type="submit" name="logout" style="width:100%;text-align:left;border:none;background:none;padding:10px 12px;cursor:pointer;">Cerrar sesión</button>
                         </form>
                     </div>
                 </div>
@@ -356,3 +356,4 @@ if ($pdo) {
     </script>
 </body>
 </html>
+

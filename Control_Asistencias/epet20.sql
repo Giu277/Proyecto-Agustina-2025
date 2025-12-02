@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 25-11-2025 a las 13:18:00
+-- Tiempo de generación: 02-12-2025 a las 11:01:43
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -39,8 +39,9 @@ CREATE TABLE `asiste-c` (
 --
 
 INSERT INTO `asiste-c` (`Id_asiste`, `fecha`, `Entrada`, `Salida`) VALUES
-(555, '2025-11-18', '13:47:01.000000', '13:47:01.000000'),
-(2134, '2025-11-25', '12:47:15.000000', '12:47:15.000000');
+(1010, '2025-12-02', '06:42:38.000000', '06:50:01.000000'),
+(1324, '2025-12-02', '06:29:40.000000', '06:58:34.000000'),
+(2134, '2025-11-27', '08:38:04.000000', '00:00:00.000000');
 
 -- --------------------------------------------------------
 
@@ -50,18 +51,21 @@ INSERT INTO `asiste-c` (`Id_asiste`, `fecha`, `Entrada`, `Salida`) VALUES
 
 CREATE TABLE `cargo` (
   `id_cargo` int(11) NOT NULL,
-  `Denominacion` varchar(50) NOT NULL,
-  `Entrada` time(6) NOT NULL,
-  `Salida` time(6) NOT NULL
+  `Denominacion` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Volcado de datos para la tabla `cargo`
 --
 
-INSERT INTO `cargo` (`id_cargo`, `Denominacion`, `Entrada`, `Salida`) VALUES
-(1, 'Portero', '00:00:00.000000', '00:00:00.000000'),
-(2, 'Profesor', '00:00:00.000000', '00:00:00.000000');
+INSERT INTO `cargo` (`id_cargo`, `Denominacion`) VALUES
+(1, 'Portero'),
+(2, 'Profesor'),
+(3, 'Preceptor'),
+(4, 'Director'),
+(6, 'otros'),
+(7, 'otros'),
+(8, 'otros');
 
 -- --------------------------------------------------------
 
@@ -85,29 +89,32 @@ CREATE TABLE `horario` (
   `Id_horario` int(11) NOT NULL,
   `Dia` date NOT NULL,
   `Entrada` time(6) NOT NULL,
-  `Salida` time(6) NOT NULL
+  `Salida` time(6) NOT NULL,
+  `id_cargo` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Volcado de datos para la tabla `horario`
 --
 
-INSERT INTO `horario` (`Id_horario`, `Dia`, `Entrada`, `Salida`) VALUES
-(1, '0000-00-00', '00:00:00.000000', '08:00:00.000000'),
-(2, '0000-00-00', '08:00:00.000000', '12:00:00.000000'),
-(3, '0000-00-00', '05:00:00.000000', '19:00:00.000000'),
-(4, '0000-00-00', '00:00:00.000000', '04:00:00.000000'),
-(6, '0000-00-00', '00:00:00.000000', '23:00:00.000000'),
-(7, '0000-00-00', '08:00:00.000000', '11:20:00.000000'),
-(8, '0000-00-00', '05:00:00.000000', '09:00:00.000000'),
-(9, '0000-00-00', '08:00:00.000000', '10:00:00.000000'),
-(10, '0000-00-00', '08:00:00.000000', '17:00:00.000000'),
-(11, '0000-00-00', '08:00:00.000000', '13:00:00.000000'),
-(12, '0000-00-00', '07:00:00.000000', '13:00:00.000000'),
-(13, '0000-00-00', '08:00:00.000000', '11:00:00.000000'),
-(14, '0000-00-00', '08:00:00.000000', '10:00:00.000000'),
-(15, '0000-00-00', '08:00:00.000000', '11:00:00.000000'),
-(16, '0000-00-00', '05:00:00.000000', '09:00:00.000000');
+INSERT INTO `horario` (`Id_horario`, `Dia`, `Entrada`, `Salida`, `id_cargo`) VALUES
+(1, '0000-00-00', '00:00:00.000000', '08:00:00.000000', NULL),
+(2, '0000-00-00', '08:00:00.000000', '12:00:00.000000', NULL),
+(3, '0000-00-00', '05:00:00.000000', '19:00:00.000000', NULL),
+(4, '0000-00-00', '00:00:00.000000', '04:00:00.000000', NULL),
+(6, '0000-00-00', '00:00:00.000000', '23:00:00.000000', NULL),
+(7, '0000-00-00', '08:00:00.000000', '11:20:00.000000', NULL),
+(8, '0000-00-00', '05:00:00.000000', '09:00:00.000000', NULL),
+(9, '0000-00-00', '08:00:00.000000', '10:00:00.000000', NULL),
+(10, '0000-00-00', '08:00:00.000000', '17:00:00.000000', NULL),
+(11, '0000-00-00', '08:00:00.000000', '13:00:00.000000', NULL),
+(12, '0000-00-00', '07:00:00.000000', '13:00:00.000000', NULL),
+(13, '0000-00-00', '08:00:00.000000', '11:00:00.000000', NULL),
+(14, '0000-00-00', '08:00:00.000000', '10:00:00.000000', NULL),
+(15, '0000-00-00', '08:00:00.000000', '11:00:00.000000', NULL),
+(16, '0000-00-00', '05:00:00.000000', '09:00:00.000000', NULL),
+(17, '0000-00-00', '09:30:00.000000', '15:30:00.000000', NULL),
+(18, '0000-00-00', '09:00:00.000000', '15:30:00.000000', 3);
 
 -- --------------------------------------------------------
 
@@ -141,6 +148,8 @@ CREATE TABLE `usuario` (
 
 INSERT INTO `usuario` (`Legajo`, `Nombre`, `Apellido`, `contraseña`, `id_cargo`, `contrasenia`) VALUES
 (555, 'santino', 'reynoso', '', 2, '$2y$10$FROjujoZMQFw5Uo2DjRkaeWb6rrrCh4eJX/0ttDp2JVX8MtTGkwKy'),
+(1010, 'franco', 'messi', '', 3, '$2y$10$fEOKiCWD5iacAY4P6IN2uOzgMTGB0RkCXwfg8Ut2W5wE/dH/yVsam'),
+(1324, 'san', 're', '', 3, '$2y$10$5Yzrig2FhriPW9.O17X2u.LtD8jULdBeVBE8GWdby47WFbg1Lkij2'),
 (2134, 'sant', 'rey', '', 1, '$2y$10$qwHl0MJOKg.Lm3meTxyfteWrGPi6myHe2oHqfzkIVzqaUSi3JLlq6'),
 (3421, 'santino', 'reynoso', '', 2, '$2y$10$xRcOIzeng0/uMTzR5FodUuoHmYoEQc9FH3RyafXJrKZcdIMCHncVK'),
 (3698, 'Felix', 'San Martin', '', 1, '$2y$10$Ga7s7bquk4zZvG3qnba/m.JNTgVjh68dTzBH/2pn6L97NNCAfHMg.');
@@ -199,7 +208,7 @@ ALTER TABLE `asiste-c`
 -- AUTO_INCREMENT de la tabla `cargo`
 --
 ALTER TABLE `cargo`
-  MODIFY `id_cargo` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id_cargo` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT de la tabla `curso`
@@ -211,7 +220,7 @@ ALTER TABLE `curso`
 -- AUTO_INCREMENT de la tabla `horario`
 --
 ALTER TABLE `horario`
-  MODIFY `Id_horario` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+  MODIFY `Id_horario` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT de la tabla `materia`
