@@ -226,16 +226,52 @@ body:not(.auth-page) {
 .btn-danger { background: var(--rojo); color: #fff; }
 .btn-success { background: var(--verde); color: #fff; }
 
+.estado-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-weight: 800;
+    min-width: 110px;
+    border: 2px solid transparent;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+    letter-spacing: 0.2px;
+}
+.estado-presente {
+    background: linear-gradient(180deg, rgba(46,139,87,0.18) 0%, rgba(46,139,87,0.3) 100%);
+    border-color: #2e8b57;
+    color: #0c3f29;
+}
+.estado-tarde {
+    background: linear-gradient(180deg, rgba(242,201,76,0.2) 0%, rgba(242,201,76,0.36) 100%);
+    border-color: #d9ac10;
+    color: #4a3800;
+}
+.estado-ausente {
+    background: linear-gradient(180deg, rgba(229,57,53,0.2) 0%, rgba(229,57,53,0.32) 100%);
+    border-color: #e53935;
+    color: #5b0c0a;
+}
+
 /* --------- Mensajes --------- */
 .mensaje {
-    padding: 12px 14px;
+    padding: 14px 16px;
     margin: 0 auto 12px;
-    border-radius: 8px;
+    border-radius: 10px;
     max-width: 1100px;
-    color: #ffffff;
+    color: #0a2a3f;
+    border: 2px solid rgba(255,255,255,0.6);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.12);
 }
-.error { background-color: #e53935; }
-.exito { background-color: #2e8b57; }
+.error {
+    background: linear-gradient(180deg, #f7d7d6 0%, #f2b1ae 100%);
+    border-color: #e53935;
+    color: #5b0c0a;
+}
+.exito {
+    background: linear-gradient(180deg, #d7f2e3 0%, #a7e4c7 100%);
+    border-color: #2e8b57;
+    color: #0c3f29;
+}
 
 /* --------- Formularios auxiliares --------- */
 .horario-group {

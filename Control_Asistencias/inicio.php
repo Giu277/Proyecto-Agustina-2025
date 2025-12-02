@@ -48,14 +48,14 @@ function getHorarioForUser(PDO $pdo, $legajo) {
     $col = null;
     foreach ($possible as $c) { if (in_array($c,$colsHor,true)) { $col = $c; break; } }
 
-    // Buscar horario para el cargo del usuario en el día de hoy
+    // Buscar horario para el cargo del usuario en el día de hoy (o genérico 0000-00-00)
     if ($col && $userIdCargo) {
-        $q = "SELECT Id_horario FROM horario WHERE Dia = CURDATE() AND `" . $col . "` = ? LIMIT 1";
+        $q = "SELECT Id_horario FROM horario WHERE `" . $col . "` = ? AND (Dia = CURDATE() OR Dia = '0000-00-00') ORDER BY (Dia = CURDATE()) DESC, Entrada ASC LIMIT 1";
         $s = $pdo->prepare($q);
         $s->execute([$userIdCargo]);
     } else {
-        // Fallback: si no hay cargo o no se encuentra columna, obtener cualquier horario del día
-        $s = $pdo->prepare("SELECT Id_horario FROM horario WHERE Dia = CURDATE() LIMIT 1");
+        // Fallback: si no hay cargo o no se encuentra columna, obtener cualquier horario del día o genérico
+        $s = $pdo->prepare("SELECT Id_horario FROM horario WHERE Dia = CURDATE() OR Dia = '0000-00-00' ORDER BY Dia DESC, Entrada ASC LIMIT 1");
         $s->execute();
     }
     $r = $s->fetch(PDO::FETCH_ASSOC);
@@ -104,20 +104,39 @@ function insertarAsistencia(PDO $pdo, array $cols, $legajo, $idHorario, $fechaAc
 
 // Registrar salida en la fila del día (actualiza la columna de Salida si existe)
 function registrarSalida(PDO $pdo, array $cols, $legajo, string $fechaActual, string $horaSalida): bool {
-    // Estructura conocida: Id_asiste, fecha, Entrada, Salida (todas NOT NULL)
+    // Intentar actualizar la fila del día
     $st = $pdo->prepare("UPDATE `asiste-c` SET `Salida` = ? WHERE `Id_asiste` = ? AND `fecha` = ? LIMIT 1");
     $st->execute([$horaSalida, $legajo, $fechaActual]);
-    if ($st->rowCount() > 0) return true;
+    if ($st->rowCount() > 0) {
+        // Verificamos que quedó grabada
+        $chk = $pdo->prepare("SELECT `Salida` FROM `asiste-c` WHERE `Id_asiste` = ? AND `fecha` = ? LIMIT 1");
+        $chk->execute([$legajo, $fechaActual]);
+        $val = $chk->fetchColumn();
+        return !empty($val) && $val !== '00:00:00' && $val !== '00:00:00.000000';
+    }
 
-    // Reintento sin filtro de fecha por si la fecha guardada difiere
-    $st2 = $pdo->prepare("UPDATE `asiste-c` SET `Salida` = ? WHERE `Id_asiste` = ? ORDER BY `fecha` DESC LIMIT 1");
-    $st2->execute([$horaSalida, $legajo]);
-    if ($st2->rowCount() > 0) return true;
+    // Buscar la última fila del legajo para reusarla
+    $sel = $pdo->prepare("SELECT `Id_asiste`, `fecha`, `Entrada`, `Salida` FROM `asiste-c` WHERE `Id_asiste` = ? ORDER BY `fecha` DESC LIMIT 1");
+    $sel->execute([$legajo]);
+    $row = $sel->fetch(PDO::FETCH_ASSOC);
 
-    // Validación mínima
-    $chk = $pdo->prepare("SELECT 1 FROM `asiste-c` WHERE `Id_asiste` = ? AND `Salida` = ? LIMIT 1");
-    $chk->execute([$legajo, $horaSalida]);
-    return (bool)$chk->fetchColumn();
+    if ($row) {
+        // Si existe, actualizamos la fecha a hoy y guardamos la salida; si la entrada está vacía, la seteamos a la salida
+        $entradaGuardar = $row['Entrada'] ?? $horaSalida;
+        if ($entradaGuardar === '00:00:00' || $entradaGuardar === '00:00:00.000000' || empty($entradaGuardar)) {
+            $entradaGuardar = $horaSalida;
+        }
+        $upd = $pdo->prepare("UPDATE `asiste-c` SET `fecha` = ?, `Entrada` = ?, `Salida` = ? WHERE `Id_asiste` = ? LIMIT 1");
+        $upd->execute([$fechaActual, $entradaGuardar, $horaSalida, $legajo]);
+        if ($upd->rowCount() > 0) return true;
+    }
+
+    // Si no había fila previa, insertamos una nueva con entrada/salida iguales
+    $ins = $pdo->prepare("INSERT INTO `asiste-c` (`Id_asiste`,`fecha`,`Entrada`,`Salida`) VALUES (?,?,?,?)");
+    $ins->execute([$legajo, $fechaActual, $horaSalida, $horaSalida]);
+    if ($ins->rowCount() > 0) return true;
+
+    return false;
 }
 
 // Obtener ausentes del día
@@ -132,7 +151,21 @@ function getUserRegistroHoy(PDO $pdo, $legajo) {
     // Estructura conocida de asiste-c: Id_asiste, fecha, Entrada, Salida
     $st = $pdo->prepare("SELECT `Entrada`,`Salida`,`fecha` FROM `asiste-c` WHERE `Id_asiste` = ? AND `fecha` = CURDATE() LIMIT 1");
     $st->execute([$legajo]);
-    return $st->fetch(PDO::FETCH_ASSOC);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if ($row) return $row;
+    // Fallback: última fila, por si la fecha quedó mal cargada
+    $st2 = $pdo->prepare("SELECT `Entrada`,`Salida`,`fecha` FROM `asiste-c` WHERE `Id_asiste` = ? ORDER BY `fecha` DESC LIMIT 1");
+    $st2->execute([$legajo]);
+    return $st2->fetch(PDO::FETCH_ASSOC);
+}
+
+// Determinar si la salida sigue pendiente
+function isSalidaPendiente(?string $salida, ?string $entrada, ?string $fecha): bool {
+    $hoy = date('Y-m-d');
+    if (empty($fecha) || $fecha !== $hoy) return true;
+    $esCero = ($salida === null || $salida === '' || $salida === '00:00:00' || $salida === '00:00:00.000000');
+    $igualEntrada = ($entrada !== null && $salida === $entrada);
+    return $esCero || $igualEntrada;
 }
 
 // Obtener denominación del cargo del usuario (para menú)
@@ -207,7 +240,7 @@ if (isset($_POST['enviar_salida']) && $usuarioLogueado) {
         } else {
             $salidaActual = $estadoHoy['Salida'] ?? null;
             $entradaActual = $estadoHoy['Entrada'] ?? null;
-            $salidaPendienteHoy = ($salidaActual === null || $salidaActual === '' || $salidaActual === '00:00:00' || $salidaActual === $entradaActual);
+            $salidaPendienteHoy = isSalidaPendiente($salidaActual, $entradaActual, $estadoHoy['fecha'] ?? null);
             if (!$salidaPendienteHoy) {
                 $mensaje = 'Ya registró su salida hoy.';
             } else {
@@ -243,12 +276,7 @@ try {
         $yaRegistro = true; 
         $horaRegistrada = $filaEst['Entrada']; 
         $salidaRegistrada = $filaEst['Salida']; 
-        // Salida pendiente si está vacía, es cero (00:00:00 o 00:00:00.000000) o igual a la entrada
-        $esCero = ($salidaRegistrada === '00:00:00' || $salidaRegistrada === '00:00:00.000000');
-        $igualEntrada = ($horaRegistrada !== null && $salidaRegistrada === $horaRegistrada);
-        if ($salidaRegistrada !== null && $salidaRegistrada !== '' && !$esCero && !$igualEntrada) {
-            $salidaPendiente = false;
-        }
+        $salidaPendiente = isSalidaPendiente($salidaRegistrada, $horaRegistrada, $filaEst['fecha'] ?? null);
     }
 } catch (PDOException $e) {
     // no crítico; dejamos $yaRegistro = false

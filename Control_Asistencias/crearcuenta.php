@@ -3,6 +3,7 @@ session_start();
 require_once 'Conexion.php';
 
 $mensaje = '';
+$horarioTieneIdCargo = false;
 
 // Obtener cargos disponibles (solo existentes)
 $cargosDisponibles = [];
@@ -13,6 +14,17 @@ try {
     $cargosDisponibles = $stmt->fetchAll(PDO::FETCH_ASSOC);
     if (empty($cargosDisponibles)) {
         $mensaje = 'No hay cargos disponibles en la base de datos.';
+    }
+    // Asegurar columna id_cargo en horario para vincular el horario elegido al cargo
+    try {
+        $check = $pdo->prepare("SHOW COLUMNS FROM `horario` LIKE 'id_cargo'");
+        $check->execute();
+        if ($check->rowCount() === 0) {
+            $pdo->exec("ALTER TABLE `horario` ADD `id_cargo` INT NULL");
+        }
+        $horarioTieneIdCargo = true;
+    } catch (PDOException $e) {
+        error_log("Aviso: no se pudo asegurar columna id_cargo en horario: " . $e->getMessage());
     }
 } catch (PDOException $e) {
     $mensaje = 'Error al obtener los cargos: ' . $e->getMessage();
@@ -48,6 +60,18 @@ if (isset($_POST['enviar']) && $_POST['enviar'] === 'Registrarse') {
             try {
                 $conexion = new Conexion();
                 $pdo = $conexion->getConexion();
+                // Revalidar columna id_cargo en horario en esta conexion
+                try {
+                    $check = $pdo->prepare("SHOW COLUMNS FROM `horario` LIKE 'id_cargo'");
+                    $check->execute();
+                    if ($check->rowCount() === 0) {
+                        $pdo->exec("ALTER TABLE `horario` ADD `id_cargo` INT NULL");
+                    }
+                    $horarioTieneIdCargo = true;
+                } catch (PDOException $e) {
+                    error_log("Aviso: no se pudo asegurar columna id_cargo en horario (registro): " . $e->getMessage());
+                    $horarioTieneIdCargo = false;
+                }
 
                 // Asegurar columnas id_cargo y contrasenia en usuario
                 try {
@@ -104,7 +128,11 @@ if (isset($_POST['enviar']) && $_POST['enviar'] === 'Registrarse') {
                     // Guardar horarios para cada cargo (opcional)
                     if ($tipoRegistro === 'cargo' && !empty($cargosProcesados)) {
                         try {
-                            $stmtInsertHorario = $pdo->prepare("INSERT INTO `horario` (`Entrada`, `Salida`) VALUES (?, ?)");
+                            if ($horarioTieneIdCargo) {
+                                $stmtInsertHorario = $pdo->prepare("INSERT INTO `horario` (`Dia`, `Entrada`, `Salida`, `id_cargo`) VALUES (?, ?, ?, ?)");
+                            } else {
+                                $stmtInsertHorario = $pdo->prepare("INSERT INTO `horario` (`Dia`, `Entrada`, `Salida`) VALUES (?, ?, ?)");
+                            }
                             foreach ($cargosProcesados as $idx => $cproc) {
                                 $entradas = $_POST['horario_entrada'][$idx] ?? [];
                                 $salidas  = $_POST['horario_salida'][$idx] ?? [];
@@ -113,7 +141,11 @@ if (isset($_POST['enviar']) && $_POST['enviar'] === 'Registrarse') {
                                     $entrada = trim($entradas[$i] ?? '');
                                     $salida  = trim($salidas[$i] ?? '');
                                     if ($entrada !== '' && $salida !== '' && $entrada < $salida) {
-                                        $stmtInsertHorario->execute([$entrada, $salida]);
+                                        if ($horarioTieneIdCargo) {
+                                            $stmtInsertHorario->execute(['0000-00-00', $entrada, $salida, $cproc['id']]);
+                                        } else {
+                                            $stmtInsertHorario->execute(['0000-00-00', $entrada, $salida]);
+                                        }
                                     }
                                 }
                             }

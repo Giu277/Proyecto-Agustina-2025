@@ -66,6 +66,18 @@ function isColumnNullable(PDO $pdo, string $table, string $column): bool {
     return strtoupper((string)$val) === 'YES';
 }
 
+// Devuelve el nombre real de la columna si existe (comparacion case-insensitive)
+function findColumn(array $cols, array $candidates): ?string {
+    foreach ($cols as $col) {
+        foreach ($candidates as $cand) {
+            if (strcasecmp($col, $cand) === 0) {
+                return $col;
+            }
+        }
+    }
+    return null;
+}
+
 function getCargoUsuario(PDO $pdo, $legajo): string {
     try {
         $st = $pdo->prepare("SELECT c.Denominacion FROM usuario u INNER JOIN cargo c ON c.id_cargo = u.id_cargo WHERE u.legajo = ? LIMIT 1");
@@ -126,6 +138,63 @@ function formatearHora(?string $valor): string {
     return $t ? date('H:i', $t) : htmlspecialchars($valor);
 }
 
+// Hora esperada para el usuario segun el horario elegido al crear la cuenta
+function horaEsperadaUsuario(PDO $pdo, $legajo): string {
+    try {
+        // 1) Obtener id_cargo y la hora de entrada registrada en cargo (si la configuraron)
+        $st = $pdo->prepare("SELECT u.id_cargo, c.Entrada AS cargoEntrada FROM usuario u LEFT JOIN cargo c ON c.id_cargo = u.id_cargo WHERE u.legajo = ? LIMIT 1");
+        $st->execute([$legajo]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        $idCargo = $r['id_cargo'] ?? null;
+        $entradaCargo = $r['cargoEntrada'] ?? '';
+        if (!empty($entradaCargo) && $entradaCargo !== '00:00:00' && $entradaCargo !== '00:00:00.000000') {
+            return substr($entradaCargo, 0, 8); // HH:MM:SS
+        }
+
+        // 2) Buscar en la tabla horario si existe una columna que relacione con el cargo y usar el horario ingresado al crear la cuenta
+        $colsHor = getColumns($pdo, 'horario');
+        $colCargo = findColumn($colsHor, ['id_cargo','Id_cargo','Id_Cargo','IdCargo','cargo_id','idCargo','Cargo']);
+        if ($colCargo && $idCargo) {
+            $q = "SELECT Entrada FROM horario WHERE `" . $colCargo . "` = ? AND (Dia = CURDATE() OR Dia = '0000-00-00') ORDER BY Dia DESC, Entrada LIMIT 1";
+            $stH = $pdo->prepare($q);
+            $stH->execute([$idCargo]);
+            $entH = $stH->fetchColumn();
+            if ($entH) {
+                return substr($entH, 0, 8);
+            }
+        }
+    } catch (PDOException $e) {
+        // usamos fallback
+    }
+    // 3) Fallback: 08:00 como hora base
+    return '08:00:00';
+}
+
+// Calcular estado comparando la entrada vs la hora esperada
+function calcularEstado(?string $horaEntrada, string $horaEsperada): string {
+    if (empty($horaEntrada)) return 'Ausente';
+    $hEntrada = strtotime(date('Y-m-d') . ' ' . $horaEntrada);
+    $hEsperada = strtotime(date('Y-m-d') . ' ' . $horaEsperada);
+    if ($hEntrada <= $hEsperada) return 'Temprano';
+    if ($hEntrada > $hEsperada + 15 * 60) return 'Tarde (+15)';
+    return 'Tarde';
+}
+
+// Clase CSS segun estado
+function claseEstado(string $estado): string {
+    $e = strtolower($estado);
+    if (strpos($e, 'ausente') !== false) return 'estado-ausente';
+    if (strpos($e, 'tarde') !== false) return 'estado-tarde';
+    return 'estado-presente';
+}
+
+// Usuarios sin marca hoy
+function obtenerAusentesDia(PDO $pdo, string $fecha): array {
+    $stmt = $pdo->prepare("SELECT u.legajo, u.nombre, u.apellido, c.Denominacion AS cargo FROM usuario u LEFT JOIN cargo c ON u.id_cargo = c.id_cargo WHERE u.legajo NOT IN (SELECT DISTINCT a.Id_asiste FROM `asiste-c` a WHERE DATE(a.fecha) = ?) ORDER BY u.apellido, u.nombre");
+    $stmt->execute([$fecha]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 // Validar sesión
 if (!isset($_SESSION['legajo'])) {
     header("Location: inicioSesion.php");
@@ -137,6 +206,7 @@ $nombreUsuario = $_SESSION['nombre'] ?? '';
 $legajo = $_SESSION['legajo'];
 $asistencias = [];
 $cargoUsuario = '';
+$pdo = null;
 
 try {
     $conexion = new Conexion();
@@ -145,6 +215,41 @@ try {
     $cargoUsuario = getCargoUsuario($pdo, $legajo);
 } catch (PDOException $e) {
     $mensaje = 'Error al obtener asistencias registradas: ' . $e->getMessage();
+}
+
+$fechaHoy = date('Y-m-d');
+$ausentesHoy = [];
+$filasConEstado = [];
+
+if ($pdo) {
+    try {
+        $ausentesHoy = obtenerAusentesDia($pdo, $fechaHoy);
+    } catch (PDOException $e) {
+        $ausentesHoy = [];
+    }
+
+    // Agregar estado a presentes
+    foreach ($asistencias as $fila) {
+        $horaEsperada = horaEsperadaUsuario($pdo, $fila['legajo'] ?? null);
+        $fila['estado'] = calcularEstado($fila['Entrada'] ?? '', $horaEsperada);
+        $fila['hora_esperada'] = $horaEsperada;
+        $filasConEstado[] = $fila;
+    }
+
+    // Agregar ausentes
+    foreach ($ausentesHoy as $aus) {
+        $filasConEstado[] = [
+            'legajo' => $aus['legajo'] ?? '',
+            'nombre' => $aus['nombre'] ?? '',
+            'apellido' => $aus['apellido'] ?? '',
+            'cargo' => $aus['cargo'] ?? '',
+            'fecha' => $fechaHoy,
+            'Entrada' => '',
+            'Salida' => '',
+            'estado' => 'Ausente',
+            'hora_esperada' => horaEsperadaUsuario($pdo, $aus['legajo'] ?? null),
+        ];
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -205,14 +310,16 @@ try {
                     <th>Fecha</th>
                     <th>Entrada</th>
                     <th>Salida</th>
+                    <th>Estado</th>
                 </tr>
-                <?php if (empty($asistencias)): ?>
+                <?php if (empty($filasConEstado)): ?>
                     <tr>
-                        <td colspan="7" style="text-align: center;">No hay asistencias registradas para la fecha seleccionada.</td>
+                        <td colspan="8" style="text-align: center;">No hay asistencias registradas para la fecha seleccionada.</td>
                     </tr>
                 <?php else: ?>
                     <?php $contadorA = 1; ?>
-                    <?php foreach ($asistencias as $fila): ?>
+                    <?php foreach ($filasConEstado as $fila): ?>
+                        <?php $estadoVal = $fila['estado'] ?? '-'; ?>
                         <tr>
                             <td><?php echo $contadorA++; ?></td>
                             <td><?php echo htmlspecialchars($fila['legajo']); ?></td>
@@ -221,6 +328,11 @@ try {
                             <td><?php echo !empty($fila['fecha']) ? date('d/m/Y', strtotime($fila['fecha'])) : '-'; ?></td>
                             <td><?php echo formatearHora($fila['Entrada'] ?? ''); ?></td>
                             <td><?php echo formatearHora($fila['Salida'] ?? ''); ?></td>
+                            <td>
+                                <span class="estado-badge <?php echo claseEstado($estadoVal); ?>">
+                                    <?php echo htmlspecialchars($estadoVal); ?>
+                                </span>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>

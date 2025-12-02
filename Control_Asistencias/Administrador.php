@@ -64,6 +64,14 @@ function obtenerAsistencias(PDO $pdo): array {
     return $st->fetchAll(PDO::FETCH_ASSOC);
 }
 
+// Clase CSS para mostrar el estado con badges de color
+function claseEstado(string $estado): string {
+    $e = strtolower($estado);
+    if (strpos($e, 'ausente') !== false) return 'estado-ausente';
+    if (strpos($e, 'tarde') !== false) return 'estado-tarde';
+    return 'estado-presente';
+}
+
 if (!isset($_SESSION['legajo'])) {
     header("Location: inicioSesion.php");
     exit();
@@ -150,7 +158,11 @@ try {
                             <td><?php echo htmlspecialchars($row['fecha']); ?></td>
                             <td><?php echo htmlspecialchars($row['Entrada']); ?></td>
                             <td><?php echo htmlspecialchars($row['Salida']); ?></td>
-                            <td><?php echo htmlspecialchars($row['estado']); ?></td>
+                            <td>
+                                <span class="estado-badge <?php echo claseEstado($row['estado'] ?? ''); ?>">
+                                    <?php echo htmlspecialchars($row['estado']); ?>
+                                </span>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </table>
