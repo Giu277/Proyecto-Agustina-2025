@@ -141,13 +141,18 @@ function formatearHora(?string $valor): string {
 // Hora esperada para el usuario segun el horario elegido al crear la cuenta
 function horaEsperadaUsuario(PDO $pdo, $legajo): string {
     try {
+        $isZero = function($time) {
+            if ($time === null) return true;
+            $t = trim((string)$time);
+            return $t === '' || $t === '00:00:00' || $t === '00:00:00.000000';
+        };
         // 1) Obtener id_cargo y la hora de entrada registrada en cargo (si la configuraron)
         $st = $pdo->prepare("SELECT u.id_cargo, c.Entrada AS cargoEntrada FROM usuario u LEFT JOIN cargo c ON c.id_cargo = u.id_cargo WHERE u.legajo = ? LIMIT 1");
         $st->execute([$legajo]);
         $r = $st->fetch(PDO::FETCH_ASSOC);
         $idCargo = $r['id_cargo'] ?? null;
         $entradaCargo = $r['cargoEntrada'] ?? '';
-        if (!empty($entradaCargo) && $entradaCargo !== '00:00:00' && $entradaCargo !== '00:00:00.000000') {
+        if (!$isZero($entradaCargo)) {
             return substr($entradaCargo, 0, 8); // HH:MM:SS
         }
 
@@ -159,7 +164,7 @@ function horaEsperadaUsuario(PDO $pdo, $legajo): string {
             $stH = $pdo->prepare($q);
             $stH->execute([$idCargo]);
             $entH = $stH->fetchColumn();
-            if ($entH) {
+            if ($entH && !$isZero($entH)) {
                 return substr($entH, 0, 8);
             }
         }
@@ -175,8 +180,10 @@ function calcularEstado(?string $horaEntrada, string $horaEsperada): string {
     if (empty($horaEntrada)) return 'Ausente';
     $hEntrada = strtotime(date('Y-m-d') . ' ' . $horaEntrada);
     $hEsperada = strtotime(date('Y-m-d') . ' ' . $horaEsperada);
-    if ($hEntrada <= $hEsperada) return 'Temprano';
-    if ($hEntrada > $hEsperada + 15 * 60) return 'Tarde (+15)';
+    if ($hEntrada === false || $hEsperada === false) return 'Presente';
+
+    // Considerar presente si llegó en horario o dentro de los primeros 15 minutos
+    if ($hEntrada <= $hEsperada + 15 * 60) return 'Presente';
     return 'Tarde';
 }
 
@@ -293,11 +300,6 @@ if ($pdo) {
                 <?php echo htmlspecialchars($mensaje); ?>
             </div>
         <?php endif; ?>
-
-        <div class="card">
-            <h3 style="margin:0 0 6px 0;">Asistencias registradas</h3>
-            <p style="margin:0;color:#eaf6ff;">Hola <?php echo htmlspecialchars($nombreUsuario); ?>, estas son las asistencias de hoy <?php echo date('d/m/Y'); ?>.</p>
-        </div>
 
         <div class="card table-card">
             <h3>Asistencias registradas - <?php echo date('d/m/Y'); ?></h3>

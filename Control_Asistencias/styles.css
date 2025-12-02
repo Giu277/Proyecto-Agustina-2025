@@ -57,7 +57,7 @@ body:not(.auth-page) {
 }
 .nav-logo img {
     height: calc(var(--nav-height) - 14px);
-    width: auto;
+    width: calc(var(--nav-height) - 14px);
     display: block;
     border-radius: 4px;
     object-fit: contain;
@@ -338,7 +338,8 @@ body:not(.auth-page) {
 .auth-card.wide { max-width: 500px; }
 .auth-logo img {
     width: 96px;
-    height: auto;
+    height: 96px;
+    object-fit: contain;
     margin-bottom: 14px;
 }
 .auth-card h1 {

@@ -20,7 +20,13 @@ function getCargoUsuario(PDO $pdo, $legajo): string {
     }
 }
 
-function obtenerAsistencias(PDO $pdo): array {
+function formatearHora(?string $valor): string {
+    if (empty($valor)) return '-';
+    $t = strtotime($valor);
+    return $t ? date('H:i', $t) : htmlspecialchars($valor);
+}
+
+function obtenerAsistencias(PDO $pdo, ?string $fecha = null): array {
     $colsA = getColumns($pdo, 'asiste-c');
     $hasA_legajo = in_array('legajo', $colsA, true) || in_array('Legajo', $colsA, true);
     $hasA_Id_asiste = in_array('Id_asiste', $colsA, true) || in_array('id_asiste', $colsA, true);
@@ -56,11 +62,17 @@ function obtenerAsistencias(PDO $pdo): array {
 
     $from = "FROM `asiste-c` a";
     $join = !empty($joinConds) ? ' LEFT JOIN usuario u ON (' . implode(' OR ', $joinConds) . ') LEFT JOIN cargo c ON c.id_cargo = u.id_cargo' : '';
+    $where = '';
+    $params = [];
+    if ($hasA_fecha && !empty($fecha) && preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $fecha)) {
+        $where = 'WHERE a.fecha = ?';
+        $params[] = $fecha;
+    }
     $order = 'ORDER BY a.fecha DESC, u.apellido, u.nombre ASC';
 
-    $sql = 'SELECT ' . implode(",\n    ", $select) . "\n    " . $from . $join . "\n    " . $order;
+    $sql = 'SELECT ' . implode(",\n    ", $select) . "\n    " . $from . $join . "\n    " . $where . "\n    " . $order;
     $st = $pdo->prepare($sql);
-    $st->execute();
+    $st->execute($params);
     return $st->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -82,11 +94,15 @@ $nombreUsuario = $_SESSION['nombre'] ?? '';
 $legajo = $_SESSION['legajo'];
 $asistencias = [];
 $cargoUsuario = '';
+$fechaSeleccionada = $_GET['fecha'] ?? date('Y-m-d');
+if (!preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $fechaSeleccionada)) {
+    $fechaSeleccionada = date('Y-m-d');
+}
 
 try {
     $conexion = new Conexion();
     $pdo = $conexion->getConexion();
-    $asistencias = obtenerAsistencias($pdo);
+    $asistencias = obtenerAsistencias($pdo, $fechaSeleccionada);
     $cargoUsuario = getCargoUsuario($pdo, $legajo);
 } catch (PDOException $e) {
     $mensaje = 'Error al obtener asistencias registradas: ' . $e->getMessage();
@@ -135,11 +151,17 @@ try {
             </div>
         <?php endif; ?>
 
-        <div class="card">
-            <h2>Asistencias registradas</h2>
+        <div class="card table-card">
+            <h3 style="margin:4px 0 10px 0;">Asistencias registradas</h3>
+            <form method="get" action="Administrador.php" style="margin:6px 0 12px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                <label for="fecha" style="margin:0;">Fecha:</label>
+                <input type="date" id="fecha" name="fecha" value="<?php echo htmlspecialchars($fechaSeleccionada); ?>" style="padding:8px 10px;border-radius:8px;border:1px solid #c7d5e3;color:#1f3a56;">
+                <button type="submit" class="btn-primary" style="width:auto;padding:10px 14px;">Buscar</button>
+            </form>
             <?php if (!empty($asistencias)): ?>
                 <table class="tabla-asistencias">
                     <tr>
+                        <th>Nro</th>
                         <th>Legajo</th>
                         <th>Nombre</th>
                         <th>Apellido</th>
@@ -149,15 +171,17 @@ try {
                         <th>Salida</th>
                         <th>Estado</th>
                     </tr>
+                    <?php $nro = 1; ?>
                     <?php foreach ($asistencias as $row): ?>
                         <tr>
+                            <td><?php echo $nro++; ?></td>
                             <td><?php echo htmlspecialchars($row['legajo']); ?></td>
                             <td><?php echo htmlspecialchars($row['nombre']); ?></td>
                             <td><?php echo htmlspecialchars($row['apellido']); ?></td>
                             <td><?php echo htmlspecialchars($row['cargo']); ?></td>
-                            <td><?php echo htmlspecialchars($row['fecha']); ?></td>
-                            <td><?php echo htmlspecialchars($row['Entrada']); ?></td>
-                            <td><?php echo htmlspecialchars($row['Salida']); ?></td>
+                            <td><?php echo !empty($row['fecha']) ? date('d/m/Y', strtotime($row['fecha'])) : '-'; ?></td>
+                            <td><?php echo formatearHora($row['Entrada'] ?? ''); ?></td>
+                            <td><?php echo formatearHora($row['Salida'] ?? ''); ?></td>
                             <td>
                                 <span class="estado-badge <?php echo claseEstado($row['estado'] ?? ''); ?>">
                                     <?php echo htmlspecialchars($row['estado']); ?>
